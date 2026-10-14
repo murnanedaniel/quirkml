@@ -37,5 +37,5 @@ fi
 ls "$WORK/plugin/libQuirkDDG4.so"
 
 echo
-echo "setup done. Next: copy colliderml/sample.yaml, set work_dir: $WORK, then"
+echo "setup done. Next: copy colliderml/sample.yaml next to $(basename "$WORK")/ (or set its work_dir: $WORK), then"
 echo "  python3 $QUIRKML/colliderml/make_sample.py my_sample.yaml"

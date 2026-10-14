@@ -15,6 +15,8 @@ Work in a directory on a local or scratch file system with that much space (see 
 
 ## 1. Clone and set up (once)
 
+Run all commands from one directory; it ends up holding `quirkml/`, `quirks/` and your settings file.
+
 ```bash
 git clone https://github.com/murnanedaniel/quirkml.git
 bash quirkml/colliderml/setup.sh quirks
@@ -69,7 +71,7 @@ Run it where you have 8 cores for up to an hour: a workstation, or an interactiv
 | 2 | Geant4 on the ODD v6 tracker with QuirkDDG4 (one core: the two quirks share one string object) |
 | 3 | ACTS geometric digitisation, written as parquet |
 
-Times on one node of a CPU cluster (podman-hpc), m = 400 GeV, Lambda = 1 keV: mu = 0 with 20 events took 3.7 minutes in all (simulation 2.9 minutes); mu = 200 with 5 events took 21 minutes. Each event had two quirks with about 27 hits from them; at mu = 200 an event has about 200,000 tracker hits.
+Times on one node of a CPU cluster (podman-hpc), m = 400 GeV, Lambda = 1 keV: mu = 0 with 20 events took 4-5 minutes in all (simulation 3-4 minutes); mu = 200 with 5 events took 21 minutes. Each event had two quirks with about 27 hits from them; at mu = 200 an event has about 200,000 tracker hits.
 
 ## 5. Read it
 
@@ -80,6 +82,8 @@ import sys; sys.path.insert(0, "quirkml/ml")
 from quirk_loader import QuirkDataset
 ds = QuirkDataset("quirks/runs/m400_L1000_mu0")
 ev = ds.event(ds.event_ids[0])     # hits, particles, truth_edges
+quirks = ev["particles"][ev["particles"].is_quirk]
+print(len(quirks), "quirks,", ev["hits"].is_quirk.sum(), "quirk hits")
 ```
 
 `docs/ml_baselines.md` describes the tables and what is usable for quirks. In short: use `tracker_hits` and `tracker_simhits`; the `tracks` tables come from helix fits and are not meaningful for quirks.
