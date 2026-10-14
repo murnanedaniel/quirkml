@@ -5,7 +5,8 @@
 # Environment, first that works:
 #   1. the ODD image itself, if it has Pythia8's python bindings (sw images built with +python);
 #   2. quirk-gen's LCG_109 view from cvmfs: directly on an el9 host, or through shifter (NERSC) or
-#      Apptainer with an el9 image. Set QUIRKGEN_ENV=image|lcg to choose.
+#      Apptainer with an el9 image. Set QUIRKGEN_ENV=image|lcg to choose the route, and
+#      QUIRKGEN_LCG_VIA=direct|shifter|apptainer to choose how the LCG view is entered.
 # Writes to the run directory:
 #   events.hepmc, events.json    quirk-gen output
 #   events_hepmc2.hepmc          the same events as HepMC2, numbered from 0. With the LCG view this is
@@ -52,11 +53,17 @@ fi
 # Route 2: LCG_109 from cvmfs.
 [ -d "$LCG_VIEW" ] || { echo "no $LCG_VIEW: quirk-gen needs cvmfs (sft.cern.ch), or an image with Pythia8 python" >&2; exit 1; }
 echo "quirk-gen in $LCG_VIEW"
-if grep -qi 'platform:el9' /etc/os-release 2>/dev/null; then
+VIA=${QUIRKGEN_LCG_VIA:-}
+if [ -z "$VIA" ]; then
+  if grep -qi 'platform:el9' /etc/os-release 2>/dev/null; then VIA=direct
+  elif command -v shifter >/dev/null; then VIA=shifter
+  elif qml_is_apptainer; then VIA=apptainer; fi
+fi
+if [ "$VIA" = direct ]; then
   bash "$0" "$CFG" --inside-lcg
-elif command -v shifter >/dev/null; then
+elif [ "$VIA" = shifter ]; then
   shifter --image=$EL9_IMAGE --module=cvmfs /bin/bash "$0" "$CFG" --inside-lcg
-elif qml_is_apptainer; then
+elif [ "$VIA" = apptainer ]; then
   "$QML_RT" exec -B /cvmfs -B "$WORK_DIR" -B "$QUIRKML" "docker://$EL9_IMAGE" /bin/bash "$0" "$CFG" --inside-lcg
 else
   echo "the LCG view needs an el9 host, shifter or Apptainer" >&2; exit 1
