@@ -13,7 +13,7 @@
 | `/cache` | `<work_dir>/cache` (Geant4 data; `COLLIDERML_CACHE=/cache`) |
 | `/quirkml` | this repo |
 
-Runtime: `$QUIRKML_RUNTIME` if set. Otherwise the first of `podman-hpc`, `docker`, `podman`, `apptainer`, `singularity` found on the path, then the Apptainer in `/cvmfs/oasis.opensciencegrid.org/mis/apptainer/current/bin/`. With Apptainer the image is pulled to `<work_dir>/sw-<tag>.sif`, and `APPTAINER_CACHEDIR` and `APPTAINER_TMPDIR` default to `<work_dir>/cache/apptainer` and `.../apptainer-tmp`, so the roughly 6 GB image cache does not go to `$HOME`. Apptainer runs with `--cleanenv --writable-tmpfs`, because the setup script links the Geant4 data into the image's data directory. Other runtimes use their own image store.
+Runtime: `$QUIRKML_RUNTIME` if set. Otherwise the first of `podman-hpc`, `docker`, `podman`, `apptainer`, `singularity` found on the path, then the Apptainer in `/cvmfs/oasis.opensciencegrid.org/mis/apptainer/current/bin/`. With Apptainer the image is pulled to `<work_dir>/sw-<tag>.sif`, and `APPTAINER_CACHEDIR` and `APPTAINER_TMPDIR` default to `<work_dir>/cache/apptainer` and `.../apptainer-tmp`, so the roughly 6 GB image cache does not go to `$HOME`. Apptainer runs with `--cleanenv --writable-tmpfs --home <work_dir>/cache/home`, and `<work_dir>/cache/g4data` is mounted at `/g4data`, where the image keeps its Geant4 data: the download would otherwise go into Apptainer's small in-memory overlay and fail, and tools in the image (`uv`) would write to the user's home. Other runtimes use their own image store.
 
 ## Setup
 
@@ -23,7 +23,7 @@ Runtime: `$QUIRKML_RUNTIME` if set. Otherwise the first of `podman-hpc`, `docker
 2. Pulls the image (`qml_pull`).
 3. Builds the QuirkDDG4 plugin inside the image from `sim/QuirkDDG4` with cmake, and copies `libQuirkDDG4.so` and `libQuirkDDG4.components` to `<work_dir>/plugin/`.
 
-Geant4 data is downloaded into `cache/` on the first simulation (about 2 GB, per the script comments).
+Geant4 data (2-4 GB) is downloaded into `cache/g4data` the first time the image environment is set up, which is during the plugin build in `setup.sh`.
 
 ## Settings and configs
 

@@ -65,7 +65,7 @@ A new member of the m4958 project goes from nothing to tracker-only quirk parque
 
 Not tested: a different user account (their podman image pull, group read access to the shared Geant4 data). That needs Jackson's student or another m4958 member. People outside m4958 would need the containers' mounts generalised.
 
-## Stage 8: anyone with a container runtime can make a sample - in progress (2026-10-14)
+## Stage 8: anyone with a container runtime can make a sample - done except Docker and the one-image quirk-gen (2026-10-14)
 
 Goal: the tutorial works for people outside m4958 and outside NERSC (Jackson's group), on any Linux machine with Docker, Podman or Apptainer, plus cvmfs for quirk-gen. Stage 7 drove the stages through `run_stage.py`, the NERSC production driver, which assumes m4958 paths, podman-hpc and a Slurm account.
 
@@ -73,7 +73,8 @@ Goal: the tutorial works for people outside m4958 and outside NERSC (Jackson's g
 2. Stage configs written with container paths; no `run_stage.py`, no Slurm account, no python env on the host for running. The packaging stage (a production postprocessing step) is dropped; the loader reads the per-run parquet.
 3. Geant4 data downloaded into the user's own cache on first use, not read from m4958.
 4. quirk-gen: an LCG_109 view from cvmfs, entered directly on an el9 host, through shifter on NERSC, or through Apptainer with an el9 image elsewhere.
-5. Test on Perlmutter with podman-hpc and with Apptainer (from cvmfs), from fresh clones in a directory outside m4958 ($PSCRATCH). Docker can't be tested here; it gets the same command as the ColliderML library uses.
+5. Tested from fresh GitHub clones in `$PSCRATCH` (outside m4958): podman-hpc for mu = 0 (20 events, 3.7 min) and mu = 200 (5 events, 21 min); Apptainer 1.5 (from cvmfs) for mu = 0, including quirk-gen through Apptainer and the LCG view. Both runtimes gave 2 quirks and about 27 quirk hits per event. Two Apptainer problems found and fixed: the Geant4 data download went into the in-memory overlay, and `uv` in the image wrote to the user's home (which went over quota).
+6. Not tested: Docker (not available here; same command form as the ColliderML library). quirk-gen inside the ODD image waits for the OpenDataDetector/sw branch `feat/python-pythia8-hepmc3` (Pythia8 and HepMC3 python bindings), whose image build was started on 2026-10-14 (GitHub Actions, manual run on the branch, no PR).
 
 ## Open questions for Daniel / Jackson / Makayla
 
