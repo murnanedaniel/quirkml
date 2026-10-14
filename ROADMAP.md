@@ -67,5 +67,5 @@ Not tested: a different user account (their podman image pull, group read access
 
 ## Open questions for Daniel / Jackson / Makayla
 
-- Who fixes the Geant4 boundary problem, and should it go back to Athena?
+- Which string model is closer to the true string dynamics with the field on (QuirkDDG4 and quirk_sim differ by 2-4 mm), and whether Athena shows the same ionisation effect (stage 1).
 - Whether Qiyu Sha's 2024 quirk data can be shared, or if we regenerate it.

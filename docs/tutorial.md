@@ -37,7 +37,7 @@ quirks/venv/bin/python quirkml/colliderml/make_sample.py my_sample.yaml
 
 This writes the stage configs to `quirks/configs/<dataset>/` (dataset is e.g. `m400_L1000_mu0`), creates the run directory, and prints the next two commands.
 
-## 3. Generate the quirk events (login node; 20 events take about a minute)
+## 3. Generate the quirk events (login node; 20 events took 1.6 minutes)
 
 ```bash
 bash quirkml/gen/run_quirkgen.sh quirks/configs/m400_L1000_mu0
