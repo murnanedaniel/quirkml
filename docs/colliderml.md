@@ -63,6 +63,12 @@ What to use for quirks:
 - `truth/tracker_simhits` and `reco/tracker_hits` (with `particle_ids` truth links) are the useful tables.
 - `reco/tracks` and `reco/truth_tracks` come from helix fits with a pion hypothesis. They are not meaningful for quirks.
 
+## Where run_stage writes
+
+Set `common.output_base_dir` in every config to your own run tree (the pilot configs do). `run_stage.py` writes config copies, logs and validation reports under `<output_base_dir>/<campaign>/<dataset>/<version>/`, and the default is the public ColliderML production tree.
+
+The packaging validation requires track files of at least 0.1 MB. A small pilot (tens of events) fails that check even though every table was written; read the packaging log for the per-table `wrote ...` lines.
+
 ## Running a stage
 
 On a login node for light stages (generation, merge), on a compute node for simulation:
