@@ -4,7 +4,7 @@
 # <work_dir> must be under /global/cfs/cdirs/m4958 (the container sees only m4958 CFS and $PSCRATCH).
 # It gets:
 #   colliderml-production/   the ColliderML pipeline at the commit below, with scripts/cli/env_setup.yaml
-#   venv/                    python for run_stage.py (simple-slurm, pyyaml)
+#   venv/                    python for run_stage.py and for reading the parquet (ml/quirk_loader.py)
 # and this repo gets sim/QuirkDDG4/build-pr-8/lib/libQuirkDDG4.so, built in the sim image.
 # Safe to rerun: existing pieces are kept.
 set -euo pipefail
@@ -34,11 +34,10 @@ if [ ! -f "$ENV_SETUP" ]; then
 fi
 
 echo "== 2/4 python for run_stage.py"
-if [ ! -x "$WORK/venv/bin/python" ]; then
-  /usr/bin/python3.11 -m venv "$WORK/venv"
-  "$WORK/venv/bin/python" -m pip install -q simple-slurm==0.3.5 pyyaml
-fi
-"$WORK/venv/bin/python" -c "import simple_slurm, yaml; print('   ok')"
+[ -x "$WORK/venv/bin/python" ] || /usr/bin/python3.11 -m venv "$WORK/venv"
+"$WORK/venv/bin/python" -c "import simple_slurm, yaml, pandas, pyarrow" 2>/dev/null ||
+  "$WORK/venv/bin/python" -m pip install -q simple-slurm==0.3.5 pyyaml numpy pandas pyarrow
+"$WORK/venv/bin/python" -c "import simple_slurm, yaml, pandas, pyarrow; print('   ok')"
 
 echo "== 3/4 sim image ($IMAGE)"
 podman-hpc image exists "$IMAGE" || podman-hpc pull "$IMAGE"

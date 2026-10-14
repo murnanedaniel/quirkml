@@ -7,7 +7,7 @@
 #   events.hepmc, events.json    quirk-gen output
 #   events_hepmc2.hepmc          the same events as HepMC2, numbered from 0 (the sim image can't read
 #                                quirk-gen's HepMC3 3.03 files; colliderml/convert_quirkgen_hepmc.sh)
-set -euo pipefail
+set -eo pipefail   # not -u: the LCG setup script uses unset variables
 QUIRKGEN_REPO=https://github.com/burzynski-lab/quirk-gen.git
 QUIRKGEN_COMMIT=9980db3
 CFG=$(cd "${1:?usage: bash gen/run_quirkgen.sh <config_dir>}" && pwd)

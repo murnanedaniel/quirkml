@@ -2,14 +2,18 @@
 
 This guide takes quirk-gen output to ColliderML-format parquet on Perlmutter. Every command here was run for the pilot in `colliderml/pilot_m400_L1000_mu0/` (m = 400 GeV, Lambda = 1 keV, no pileup) and `colliderml/pilot_m400_L1000_mu200/` (mu = 200).
 
-The chain is the ColliderML production code ([colliderml-production](https://github.com/OpenDataDetector/colliderml-production)), driven stage by stage with `scripts/cli/run_stage.py`. Quirks need four changes to it, which exist as local branches (not yet merged or pushed; see "Status of the ColliderML changes" below).
+**To make a sample, follow `docs/tutorial.md`**: its scripts do every step below from one settings file. This page explains what those steps do, for when something needs changing.
+
+The chain is the ColliderML production code ([colliderml-production](https://github.com/OpenDataDetector/colliderml-production)), driven stage by stage with `scripts/cli/run_stage.py`. Quirks need five changes to it, on branches of that repo (not merged; see "Status of the ColliderML changes" below).
 
 ## 0. One-time setup
 
-1. A checkout of colliderml-production with the quirk changes (today: the local branch `quirk/pilot-integration`).
-2. `scripts/cli/env_setup.yaml`. It is not in git (it holds site paths); copy it from an existing checkout, or start from `scripts/cli/env_setup.yaml.container-template`. Without it, `run_stage.py` stops with "Configuration missing 'output_base_dir'".
-3. The `collider-env` conda python for `run_stage.py` (`~/.conda/envs/collider-env/bin/python`); the system python3 fails.
-4. The QuirkDDG4 plugin built for the sim image: `bash sim/QuirkDDG4/build_colliderml.sh` on a login node (writes `sim/QuirkDDG4/build-pr-8/lib/libQuirkDDG4.so`).
+`colliderml/setup.sh` does all four:
+
+1. A checkout of colliderml-production with the quirk changes: branch `quirk/pilot-integration` at `6495666`.
+2. `scripts/cli/env_setup.yaml`. It is not in git (it holds site paths); `colliderml/env_setup.yaml.in` is the tracker-only version. Without it, `run_stage.py` stops with "Configuration missing 'output_base_dir'".
+3. A python with `simple-slurm` 0.3.5 and `pyyaml` for `run_stage.py`; the system python3 (3.6) fails.
+4. The QuirkDDG4 plugin built for the sim image: `bash sim/QuirkDDG4/build_colliderml.sh` (writes `sim/QuirkDDG4/build-pr-8/lib/libQuirkDDG4.so`).
 
 ## 1. Make quirk-gen output readable
 
@@ -52,7 +56,7 @@ user_physics:
       EnableEM: true
 ```
 
-The rest of the config is the ColliderML tracker-only setup (`odd_compact_files` with ODD v6 Defs + Tracker). The plugin is single-threaded, so a run is one core.
+The rest of the config is the tracker-only setup from the ColliderML drifting-beamspot campaign: `odd_compact_files` lists ODD v6 `OpenDataDetectorDefs.xml`, `OpenDataDetectorTracker.xml` and that campaign's `configs_production/drift_beamspot/geometry/tracker_fields_plugins.xml` (the magnetic field and plugin blocks the tracker file alone lacks; without it ddsim crashes). The plugin is single-threaded, so a run is one core.
 
 ## 4. Digitisation and parquet
 
@@ -82,7 +86,7 @@ For a compute node, wrap it: `salloc -A m4958 -C cpu -q shared_interactive -t 12
 
 ## Status of the ColliderML changes
 
-All on local branches of colliderml-production, based on `feat/two-container-pipeline`:
+Branches of colliderml-production on GitHub, based on `feat/two-container-pipeline` (`2eb67bc`). None has a PR yet.
 
 | Branch | Change | Checked |
 |---|---|---|
@@ -90,4 +94,5 @@ All on local branches of colliderml-production, based on `feat/two-container-pip
 | `fix/ddsim-single-thread-duplicates` | single-thread ddsim wrote each event twice | 1 event -> 1 entry (was 2); 2 threads unchanged |
 | `fix/ddsim-exit-code` | `ddsim_run.py` returned 0 on failure | missing config: exit 1 (was 0) |
 | `fix/pythia-hard-scatter-path` | `hard_scatter_file` / `pileup_file` from config crashed | mu = 200 merge runs |
-| `quirk/pilot-integration` | the four above, plus the worktree fix for `run_stage` (from `f71e7c8`) | used for the pilot |
+| `fix/pscratch-bind-path` | the container mounted one fixed user's `$PSCRATCH` | tutorial rerun |
+| `quirk/pilot-integration` | the five above, plus the worktree fix for `run_stage` (from `f71e7c8`) | pilot and tutorial rerun |
