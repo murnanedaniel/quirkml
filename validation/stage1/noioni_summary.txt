@@ -1,0 +1,17 @@
+L500 q=+1 ODD B=0, no ionisation vs exact    t<1:0.0053  t<2:0.0090  t<5:0.0092  t<10:0.0107  t<20:0.0107  t<40:0.0107
+L500 q=+1 ODD B=0, ionisation on vs exact    t<1:0.0086  t<2:0.0135  t<5:0.0466  t<10:0.1258  t<20:0.1258  t<40:0.1258
+L500 q=+1 ODD 3T, no ionisation vs quirk_sim t<1:0.0117  t<2:0.1210  t<5:0.7140  t<10:1.9446  t<20:1.9446  t<40:1.9446
+L500 q=+1 ODD 3T, ionisation on vs quirk_sim t<1:0.0146  t<2:0.1242  t<5:0.7280  t<10:2.0098  t<20:2.0098  t<40:2.0098
+L500 q=-1 ODD B=0, no ionisation vs exact    t<1:0.0089  t<2:0.0096  t<5:0.0096  t<10:0.0110  t<20:0.0110  t<40:0.0110
+L500 q=-1 ODD B=0, ionisation on vs exact    t<1:0.0105  t<2:0.0139  t<5:0.0650  t<10:0.1390  t<20:0.1390  t<40:0.1390
+L500 q=-1 ODD 3T, no ionisation vs quirk_sim t<1:0.0096  t<2:0.1211  t<5:0.7259  t<10:2.1460  t<20:2.1460  t<40:2.1460
+L500 q=-1 ODD 3T, ionisation on vs quirk_sim t<1:0.0133  t<2:0.1292  t<5:0.7687  t<10:2.2139  t<20:2.2139  t<40:2.2139
+L1000 q=+1 ODD B=0, no ionisation vs exact   t<1:0.0005  t<2:0.0013  t<5:0.0020  t<10:0.0023  t<20:0.0143  t<40:0.0148
+L1000 q=+1 ODD B=0, ionisation on vs exact   t<1:0.0009  t<2:0.0018  t<5:0.6619  t<10:2.7025  t<20:7.8033  t<40:23.5664
+L1000 q=+1 ODD 3T, no ionisation vs quirk_sim t<1:0.0039  t<2:0.0105  t<5:0.1418  t<10:0.4605  t<20:1.3220  t<40:4.4187
+L1000 q=+1 ODD 3T, ionisation on vs quirk_sim t<1:0.0039  t<2:0.0103  t<5:0.7111  t<10:2.9184  t<20:8.7690  t<40:27.3961
+L1000 q=-1 ODD B=0, no ionisation vs exact   t<1:0.0005  t<2:0.0012  t<5:0.0014  t<10:0.0030  t<20:0.0148  t<40:0.0157
+L1000 q=-1 ODD B=0, ionisation on vs exact   t<1:0.0009  t<2:0.0016  t<5:0.7287  t<10:2.8121  t<20:7.9708  t<40:23.3281
+L1000 q=-1 ODD 3T, no ionisation vs quirk_sim t<1:0.0039  t<2:0.0106  t<5:0.1390  t<10:0.4561  t<20:1.2889  t<40:4.4546
+L1000 q=-1 ODD 3T, ionisation on vs quirk_sim t<1:0.0040  t<2:0.0113  t<5:0.7873  t<10:3.0400  t<20:8.9813  t<40:27.1172
+

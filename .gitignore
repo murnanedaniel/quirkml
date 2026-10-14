@@ -4,3 +4,4 @@ sim/QuirkDDG4/build/
 *.root
 *_steps.csv
 *.hepmc3
+build-*/

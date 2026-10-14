@@ -47,12 +47,16 @@ The quick start above has not yet been run on a quirk-gen file. The commands are
 ## What has been checked
 
 - A 16,000-event pilot (masses 400 and 800 GeV, sqrt(sigma) = 0.5, 1, 2, 4 keV) ran through QuirkDDG4 on full ODD v4. It used `gen/`, not quirk-gen.
-- With the field off and no detector volumes, Geant4 and quirk_sim both follow the exact closed-form motion: Geant4 to 0.5 mm over 40 ns, quirk_sim to 0.007-2.3 mm depending on the tension (`validation/fieldoff/`).
+- With no field and no energy loss, QuirkDDG4 follows the exact closed-form motion to 0.016 mm over 40 ns (`docs/validation_status.md`).
+- QuirkDDG4 builds inside the current ColliderML sim image (`sim/QuirkDDG4/build_colliderml.sh`, sw:pr-8).
 - The coupled fit recovers the tension to a few percent on hits from its own model.
 
-## Known open problem
+## Things to know before using the samples
 
-In the full ODD geometry, the Geant4 transport drifts away from the exact motion: 24 mm by 40 ns at Lambda = 1 keV, with the field and quirk EM processes off. The quirk energy is not conserved there, while in an empty world it is conserved to about 5 MeV. So the earlier gap between Geant4 and quirk_sim (25 mm at 1 keV) comes mostly from how the Geant4 port handles detector volumes. We haven't yet located the cause in the code. Details and data: `docs/validation_status.md`.
+- `--no-em` keeps ionisation on the quirks, because ionisation makes the tracker hits. `--no-ionisation` also drops it, for validation only, since there are then no hits.
+- Ionisation changes the quirk oscillation noticeably: up to 24 mm by 40 ns at Lambda = 1 keV in our test event. quirk_sim leaves it out.
+- With the field on, QuirkDDG4 and quirk_sim differ by 2-4 mm even without ionisation, because they model the string differently. Which is closer to the true string dynamics is open.
+- Use `--max-boost 1e-3` or smaller for slack strings: the default 1e-2 is off by 1.3 mm at 0.5 keV.
 
 ## Credits and licence
 

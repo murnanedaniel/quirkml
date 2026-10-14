@@ -11,16 +11,13 @@ Each stage ends with a check that a new person can repeat. Nothing gets pushed t
 - Field-off exact-motion test. Geant4 is accurate without detector volumes and drifts with them (`docs/validation_status.md`).
 - ColliderML: optional `user_physics` setting for `ddsim_run.py`, on local branch `feat/user-physics-plugin` of colliderml-production. Mock-tested only.
 
-## Stage 1: fix or bound the Geant4 boundary problem
+## Stage 1: understand the Geant4-vs-quirk_sim gap - done (2026-10-14)
 
-This comes first, because every sample made before it inherits a 1-25 mm error.
-
-1. Instrument the Geant4 port: count and log steps where the stepper advances momentum without moving the quirk, and steps cut at volume boundaries. Check whether the energy jumps line up with them.
-2. Find the cause, fix it in QuirkDDG4, and rerun the field-off test in full ODD. Target: the same 0.5 mm as the empty world.
-3. Run Geant4 in an empty world with the field on, and compare with quirk_sim. That isolates the field treatment.
-4. Ask Jackson whether the Athena version shows the same energy drift. It's the same code, and it matters for ATLAS samples.
-
-Check: `validation/fieldoff` passes in full ODD; energy conserved to the empty-world level.
+- Not a boundary bug. The 25 mm gap at 1 keV is mostly quirk ionisation in the silicon (`--no-em` keeps it). Without ionisation, Geant4 follows the exact field-free motion to 0.016 mm.
+- With the field on, the two string models differ by 2-4 mm; both codes are converged in step size.
+- Geant4's default `MaxBoost` 1e-2 is off by 1.3 mm at 0.5 keV; 1e-3 is converged to 0.1 mm.
+- Open: which string model is closer to Nambu-Goto with a field. One way to settle it is a full Nambu-Goto string simulation for one event. Worth raising with Jackson.
+- Decision for Daniel: production `MaxBoost` (1e-2 vs 1e-3; 1e-3 takes about 10 times more steps).
 
 ## Stage 2: quirk-gen to ODD simulation, end to end
 

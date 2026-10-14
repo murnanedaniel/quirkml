@@ -1,0 +1,11 @@
+L500 Geant4 MaxBoost 1e-2  vs quirk_sim(conv): t<2:0.1210  t<5:0.7143  t<10:1.9485  t<20:1.9485  t<40:1.9485
+L500 Geant4 MaxBoost 1e-3  vs quirk_sim(conv): t<2:0.1187  t<5:0.7126  t<10:1.9593  t<20:1.9593  t<40:1.9593
+L500 Geant4 MaxBoost 1e-4  vs quirk_sim(conv): t<2:0.1189  t<5:0.7125  t<10:1.9606  t<20:1.9606  t<40:1.9606
+L500 Geant4 MaxBoost 1e-2  vs Geant4 1e-4:       t<2:0.0116  t<5:0.0116  t<10:1.2639  t<20:1.2639  t<40:1.2639
+L500 Geant4 MaxBoost 1e-3  vs Geant4 1e-4:       t<2:0.0028  t<5:0.0032  t<10:0.0991  t<20:0.0991  t<40:0.0991
+L1000 Geant4 MaxBoost 1e-2  vs quirk_sim(conv): t<2:0.0102  t<5:0.0641  t<10:0.2547  t<20:1.0087  t<40:3.6776
+L1000 Geant4 MaxBoost 1e-3  vs quirk_sim(conv): t<2:0.0104  t<5:0.0643  t<10:0.2538  t<20:1.0085  t<40:3.6847
+L1000 Geant4 MaxBoost 1e-4  vs quirk_sim(conv): t<2:0.0105  t<5:0.0643  t<10:0.2538  t<20:1.0081  t<40:3.6861
+L1000 Geant4 MaxBoost 1e-2  vs Geant4 1e-4:       t<2:0.0028  t<5:0.0035  t<10:0.0035  t<20:0.0263  t<40:0.0723
+L1000 Geant4 MaxBoost 1e-3  vs Geant4 1e-4:       t<2:0.0024  t<5:0.0025  t<10:0.0028  t<20:0.0236  t<40:0.0236
+
