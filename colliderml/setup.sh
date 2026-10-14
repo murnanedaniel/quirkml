@@ -1,55 +1,41 @@
 #!/bin/bash
-# One-time setup for making quirk samples with ColliderML. Run on a Perlmutter login node:
+# One-time setup for making quirk samples with the ColliderML pipeline, on any Linux machine with
+# Docker, Podman, podman-hpc (NERSC) or Apptainer:
 #   bash colliderml/setup.sh <work_dir>
-# <work_dir> must be under /global/cfs/cdirs/m4958 (the container sees only m4958 CFS and $PSCRATCH).
-# It gets:
-#   colliderml-production/   the ColliderML pipeline at the commit below, with scripts/cli/env_setup.yaml
-#   venv/                    python for run_stage.py and for reading the parquet (ml/quirk_loader.py)
-# and this repo gets sim/QuirkDDG4/build-pr-8/lib/libQuirkDDG4.so, built in the sim image.
-# Safe to rerun: existing pieces are kept.
+# <work_dir> gets:
+#   colliderml-production/   the ColliderML stage scripts, at the commit below
+#   sw-<tag>.sif             the ODD software image (Apptainer only; other runtimes keep their own store)
+#   plugin/                  QuirkDDG4 built inside that image
+#   cache/                   Geant4 data (downloaded on the first simulation, about 2 GB)
+# Safe to rerun: existing pieces are kept. Set QUIRKML_RUNTIME to choose the runtime.
 set -euo pipefail
 WORK=${1:?usage: bash colliderml/setup.sh <work_dir>}
+mkdir -p "$WORK"; WORK=$(cd "$WORK" && pwd)
 QUIRKML=$(cd "$(dirname "$0")/.." && pwd)
 COLLIDERML_REPO=https://github.com/OpenDataDetector/colliderml-production.git
 COLLIDERML_BRANCH=quirk/pilot-integration
 COLLIDERML_COMMIT=6495666          # feat/two-container-pipeline + the quirk changes (docs/colliderml.md)
-IMAGE=ghcr.io/opendatadetector/sw:pr-8
+source "$QUIRKML/colliderml/container.sh" "$WORK"
 
-case "$WORK" in /global/cfs/cdirs/m4958/*) ;; *) echo "work_dir must be under /global/cfs/cdirs/m4958" >&2; exit 1;; esac
-case "$QUIRKML" in /global/cfs/cdirs/m4958/*|"${PSCRATCH:-/nonexistent}"/*) ;;
-  *) echo "clone quirkml under /global/cfs/cdirs/m4958 (the plugin library must be visible in the container)" >&2; exit 1;; esac
-mkdir -p "$WORK"
-
-echo "== 1/4 colliderml-production ($COLLIDERML_BRANCH @ $COLLIDERML_COMMIT)"
+echo "== 1/3 colliderml-production ($COLLIDERML_BRANCH @ $COLLIDERML_COMMIT)"
 if [ ! -d "$WORK/colliderml-production/.git" ]; then
   git clone -q -b "$COLLIDERML_BRANCH" "$COLLIDERML_REPO" "$WORK/colliderml-production"
   git -C "$WORK/colliderml-production" checkout -q "$COLLIDERML_COMMIT"
 fi
 echo "   at $(git -C "$WORK/colliderml-production" rev-parse --short HEAD)"
-ENV_SETUP=$WORK/colliderml-production/scripts/cli/env_setup.yaml
-if [ ! -f "$ENV_SETUP" ]; then
-  sed -e "s|@COLLIDERML@|$WORK/colliderml-production|g" -e "s|@RUNS_BASE@|$WORK/runs|g" \
-      "$QUIRKML/colliderml/env_setup.yaml.in" > "$ENV_SETUP"
-  echo "   wrote $ENV_SETUP"
-fi
 
-echo "== 2/4 python for run_stage.py"
-[ -x "$WORK/venv/bin/python" ] || /usr/bin/python3.11 -m venv "$WORK/venv"
-"$WORK/venv/bin/python" -c "import simple_slurm, yaml, pandas, pyarrow" 2>/dev/null ||
-  "$WORK/venv/bin/python" -m pip install -q simple-slurm==0.3.5 pyyaml numpy pandas pyarrow
-"$WORK/venv/bin/python" -c "import simple_slurm, yaml, pandas, pyarrow; print('   ok')"
-
-echo "== 3/4 sim image ($IMAGE)"
-podman-hpc image exists "$IMAGE" || podman-hpc pull "$IMAGE"
+echo "== 2/3 image $QUIRKML_IMAGE via $QML_RT (about 6 GB, pulled once)"
+qml_pull
 echo "   ok"
 
-echo "== 4/4 QuirkDDG4 plugin"
-if [ ! -f "$QUIRKML/sim/QuirkDDG4/build-pr-8/lib/libQuirkDDG4.so" ]; then
-  COLLIDERML_CONTAINER_SETUP=$WORK/colliderml-production/scripts/cli/setup_container_env.sh \
-    bash "$QUIRKML/sim/QuirkDDG4/build_colliderml.sh"
+echo "== 3/3 QuirkDDG4 plugin"
+if [ ! -f "$WORK/plugin/libQuirkDDG4.so" ]; then
+  qml_run "cmake -S /quirkml/sim/QuirkDDG4 -B /work/plugin/build -DCMAKE_BUILD_TYPE=Release >/dev/null &&
+           cmake --build /work/plugin/build -j8 2>&1 | grep -E 'error|Built target' ;
+           cp /work/plugin/build/lib/libQuirkDDG4.so /work/plugin/build/lib/libQuirkDDG4.components /work/plugin/"
 fi
-ls "$QUIRKML/sim/QuirkDDG4/build-pr-8/lib/libQuirkDDG4.so"
+ls "$WORK/plugin/libQuirkDDG4.so"
 
 echo
 echo "setup done. Next: copy colliderml/sample.yaml, set work_dir: $WORK, then"
-echo "  $WORK/venv/bin/python $QUIRKML/colliderml/make_sample.py my_sample.yaml"
+echo "  python3 $QUIRKML/colliderml/make_sample.py my_sample.yaml"

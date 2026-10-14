@@ -1,19 +1,13 @@
 # One quirk sample: copy this file, edit it, then
-#   python colliderml/make_sample.py my_sample.yaml
-#
-# Paths. Everything the container reads or writes must be under /global/cfs/cdirs/m4958 or
-# under your $PSCRATCH: those are the only host paths podman-hpc mounts. $USER and $PSCRATCH
-# are expanded.
-work_dir: /global/cfs/cdirs/m4958/usr/$USER/quirks   # setup.sh put colliderml-production and the python env here
-cache_dir: /global/cfs/cdirs/m4958/usr/danieltm/ColliderML/software/colliderml-prod-container/.cache   # shared Geant4 data (m4958 group)
-quirkgen_scratch: $PSCRATCH/quirkgen                  # MadGraph cannot run on CFS; outputs are copied back
+#   python3 colliderml/make_sample.py my_sample.yaml
+# Flat "key: value" lines only.
 
-# Naming: runs go to <work_dir>/runs/<campaign>/<dataset>/<version>/runs/0, where dataset is
-# m<mass>_L<lambda>_mu<mu>.
-campaign: quirk
-version: v0
+# The directory you gave colliderml/setup.sh. Everything goes in here: quirk-gen output, configs,
+# runs, the Geant4 data and the container image cache (about 10 GB in all). On NERSC use $PSCRATCH
+# (MadGraph doesn't run on CFS). $VARS and ~ are expanded.
+work_dir: $PSCRATCH/quirks
 
-# Physics point.
+# Physics point. The dataset is named m<mass>_L<lambda>_mu<mu>; runs go to <work_dir>/runs/<dataset>/.
 mass_gev: 400        # quirk mass; quirk-gen generates this
 lambda_ev: 1000      # string scale Lambda (sqrt of the tension); used only in the simulation
 mu: 0                # pileup: 0 for none, else mean number of Pythia8 SoftQCD events
