@@ -47,6 +47,8 @@ public:
     void Update(G4FieldTrack& fieldTrack, G4bool forceStep);
 
     void SetDebug(G4bool debug);
+    // diagnostic: state of the current hyperbola step (x, y, z, px, py, pz, KE, t_lab, length)
+    void DumpCurrent(G4double y[]) {m_currStep.Dump(y);}
 
 private:
     static const G4int m_NUM_VARS = 9;

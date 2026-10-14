@@ -62,6 +62,10 @@
 #include "G4FieldManagerStore.hh"
 #include "G4MagIntegratorDriver.hh"
 #include "G4Version.hh"
+#include <cstdlib>
+#include <fstream>
+#include <iomanip>
+#include <cmath>
 
 #include "Quirk.h"
 #include "InfracolorForce.h"
@@ -274,7 +278,33 @@ AlongStepGetPhysicalInteractionLength( const G4Track&  track,
         geometryStepLength   = currentMinimumStep ;
      }
      // Update stepper, string vectors with step length from field propagator
-     quirkStepper.Update(aFieldTrack, aFieldTrack.GetCurveLength() == 0 && !m_geometryLimitedStep);
+     G4bool forceStep = aFieldTrack.GetCurveLength() == 0 && !m_geometryLimitedStep;
+     quirkStepper.Update(aFieldTrack, forceStep);
+     // Diagnostic (QUIRK_STEPCHECK_FILE): compare the field track handed back by the propagator
+     // with the stepper's own hyperbola state at the same step length.
+     static std::ofstream* chk = nullptr; static int chkInit = 0;
+     if (!chkInit) {
+        chkInit = 1;
+        const char* f = std::getenv("QUIRK_STEPCHECK_FILE");
+        if (f && f[0]) {
+           chk = new std::ofstream(f);
+           (*chk) << "pdg,t_ns,geomLimited,forceStep,minStep_mm,alongCurve_mm,curveLen_mm,ft_x,ft_y,ft_z,st_x,st_y,st_z,ft_E_MeV,st_E_MeV,ft_p_MeV,st_p_MeV\n";
+        }
+     }
+     if (chk) {
+        G4double y[9]; quirkStepper.DumpCurrent(y);
+        const G4ThreeVector ftx = aFieldTrack.GetPosition();
+        const G4double m = restMass;
+        const G4double ftE = aFieldTrack.GetKineticEnergy() + m;
+        const G4double stE = y[6] + m;
+        (*chk) << pParticleDef->GetPDGEncoding() << "," << track.GetGlobalTime() / CLHEP::ns << ","
+               << m_geometryLimitedStep << "," << forceStep << ","
+               << currentMinimumStep << "," << lengthAlongCurve << "," << aFieldTrack.GetCurveLength() << ","
+               << ftx.x() << "," << ftx.y() << "," << ftx.z() << "," << y[0] << "," << y[1] << "," << y[2] << ","
+               << std::setprecision(12) << ftE << "," << stE << ","
+               << aFieldTrack.GetMomentum().mag() << "," << std::sqrt(y[3]*y[3] + y[4]*y[4] + y[5]*y[5])
+               << std::setprecision(6) << "\n";
+     }
   }
   else
   {

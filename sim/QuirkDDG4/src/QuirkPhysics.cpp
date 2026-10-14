@@ -53,6 +53,7 @@ namespace dd4hep {
         declareProperty("MaxMergeT",      m_maxMergeT);        // mm
         declareProperty("MaxMergeMag",    m_maxMergeMag);      // mm
         declareProperty("EnableEM",       m_enableEM);         // EM processes on quirks
+        declareProperty("EnableIonisation", m_enableIoni);     // ionisation when EnableEM is false (needed for hits)
       }
       virtual ~QuirkPhysics() = default;
 
@@ -108,8 +109,13 @@ namespace dd4hep {
               // SimTrackerHits) but drop multiple scattering + radiative
               // processes, isolating whether the transverse braid scatter is
               // multiple scattering or the transport/stepper itself.
-              pmanager->AddProcess(new G4hIonisation,         -1, 1, 1);
-              pmanager->AddProcess(new QuirkWatcher,          -1, -1, 2);
+              if (m_enableIoni) {
+                pmanager->AddProcess(new G4hIonisation,       -1, 1, 1);
+                pmanager->AddProcess(new QuirkWatcher,        -1, -1, 2);
+              } else {
+                // pure string transport (validation only): no energy loss, so no tracker hits
+                pmanager->AddProcess(new QuirkWatcher,        -1, -1, 1);
+              }
             }
           }
         }
@@ -137,6 +143,7 @@ namespace dd4hep {
       double m_maxMergeT{1.0e-6};
       double m_maxMergeMag{1.0e-6};
       bool   m_enableEM{true};      // ionisation/MS/brems/pair on the quirks
+      bool   m_enableIoni{true};    // with EnableEM false: keep ionisation (true) or none at all
     };
   }
 }

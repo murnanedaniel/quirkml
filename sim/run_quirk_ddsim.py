@@ -38,9 +38,12 @@ def main():
     ap.add_argument("--first-string", type=float, default=1e-6, help="mm")
     ap.add_argument("--max-boost", type=float, default=1e-2)
     ap.add_argument("--no-em", action="store_true",
-                    help="disable EM processes on the quirks (diagnostic: pure "
-                         "string transport, no material scattering/energy loss)")
+                    help="disable multiple scattering, bremsstrahlung and pair production on the "
+                         "quirks; ionisation stays on (it makes the hits) unless --no-ionisation")
     ap.add_argument("--no-quirk-physics", action="store_true", help="diagnostic: plain ddsim")
+    ap.add_argument("--no-ionisation", action="store_true",
+                    help="with --no-em: also drop ionisation (pure string transport for validation; "
+                         "no energy deposits, so no tracker hits)")
     a = ap.parse_args()
 
     # DD4hepSimulation.run() re-parses sys.argv; strip our args so it does not
@@ -92,6 +95,7 @@ def main():
         q.MaxMergeT = 1e-6
         q.MaxMergeMag = 1e-6
         q.EnableEM = not no_em
+        q.EnableIonisation = not a.no_ionisation
         q.enableUI()
         seq.adopt(q)
         return None
