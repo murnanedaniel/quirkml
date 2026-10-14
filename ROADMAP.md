@@ -54,6 +54,19 @@ Each stage ends with a check that a new person can repeat. Nothing gets pushed t
 2. Docs reviewed by Daniel; nothing ATLAS-internal; licences checked for anything taken from quirk-gen, quirk-tracking or quirkviz (none of them has a licence).
 3. Push to a remote Daniel chooses, and walk Jackson's student through it.
 
+## Stage 7: anyone on m4958 can make a sample - in progress (from 2026-10-14)
+
+Goal: a new member of the m4958 project goes from nothing to tracker-only quirk parquet by following one page (`docs/tutorial.md`) and editing one settings file. Before this stage, the route worked only from Daniel's account: the ColliderML changes were local branches, the configs held his paths, the run_stage python was his conda env, and quirk-gen was run by hand.
+
+1. ColliderML changes as patches. The five changes go in `colliderml/patches/`, applied by script to a fresh GitHub clone of colliderml-production at `2eb67bc` (the tip of `feat/two-container-pipeline`). One more change is needed: the container mounts Daniel's `$PSCRATCH` by name. Check: the patched clone matches the local integration branch.
+2. One settings file. `colliderml/sample.yaml` holds the paths and the physics point; `colliderml/make_sample.py` writes the stage configs and `env_setup.yaml` from it. Check: the generated configs differ from the pilot configs only in paths.
+3. Scripts for each step: `colliderml/setup.sh` (clone and patch, python env for run_stage, build QuirkDDG4), `gen/run_quirkgen.sh` (quirk-gen on $PSCRATCH, then the HepMC conversion), `colliderml/run_sample.sh` (all stages in order; stops when a stage writes no output).
+4. `docs/tutorial.md`, written from the commands that ran in step 5.
+5. Rerun from scratch: fresh clones from GitHub in a new directory, a new python env, quirk-gen, then mu = 0 (20 events) and mu = 200 (5 events) to parquet. Compare with the pilot.
+6. Push to github.com/murnanedaniel/quirkml.
+
+Not covered by step 5: a different user account (podman image store, group permissions). That needs Jackson's student or another m4958 member.
+
 ## Open questions for Daniel / Jackson / Makayla
 
 - Who fixes the Geant4 boundary problem, and should it go back to Athena?
