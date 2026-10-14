@@ -1,4 +1,4 @@
-"""Read ColliderML-format parquet (package_parquet output) into per-event tables for quirk studies.
+"""Read ColliderML-format parquet into per-event tables for quirk studies.
 
 Per event:
   hits      one row per reco tracker hit: x, y, z, volume_id, layer_id, surface_id, the truth
@@ -10,8 +10,8 @@ Per event:
             inwards; time order follows the trajectory.
 
     from quirk_loader import QuirkDataset
-    ds = QuirkDataset("<base>/<campaign>/<dataset>/<version>/parquet")   # packaged layout
-    ds = QuirkDataset("<base>/<campaign>/<dataset>/<version>/runs/<n>")  # per-run layout
+    ds = QuirkDataset("<work_dir>/runs/<dataset>")      # per-run layout (docs/tutorial.md)
+    ds = QuirkDataset("<base>/<campaign>/<dataset>/<version>/parquet")   # packaged layout (the pilots)
     ev = ds.event(0)          # dict of DataFrames: hits, particles, truth_edges
 """
 from pathlib import Path

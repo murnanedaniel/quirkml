@@ -3,9 +3,9 @@
 # Flat "key: value" lines only.
 
 # The directory you gave colliderml/setup.sh. Everything goes in here: quirk-gen output, configs,
-# runs, the Geant4 data and the container image cache (about 10 GB in all). On NERSC use $PSCRATCH
-# (MadGraph doesn't run on CFS). $VARS and ~ are expanded.
-work_dir: $PSCRATCH/quirks
+# runs, the Geant4 data and the image (about 15 GB in all). A relative path is relative to this
+# settings file; $VARS and ~ are expanded.
+work_dir: quirks
 
 # Physics point. The dataset is named m<mass>_L<lambda>_mu<mu>; runs go to <work_dir>/runs/<dataset>/.
 mass_gev: 400        # quirk mass; quirk-gen generates this

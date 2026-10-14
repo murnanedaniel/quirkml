@@ -51,9 +51,13 @@ qml_run() {
 [ -f /opt/odd-install/bin/this_odd.sh ] && source /opt/odd-install/bin/this_odd.sh; "
   mkdir -p "$QML_WORK/cache"
   if qml_is_apptainer; then
-    # --writable-tmpfs: the setup script links the Geant4 data into the image's own data directory.
-    "$QML_RT" exec --cleanenv --writable-tmpfs \
+    # The setup script downloads the Geant4 data (about 2 GB) into /g4data, which under Apptainer
+    # is inside a small in-memory overlay. Mount <work_dir>/cache/g4data there instead. --home
+    # keeps the container off the user's home directory (and its quota).
+    mkdir -p "$QML_WORK/cache/g4data" "$QML_WORK/cache/home"
+    "$QML_RT" exec --cleanenv --writable-tmpfs --home "$QML_WORK/cache/home" \
       -B "$QML_WORK:/work,$QML_WORK/colliderml-production:/workspace,$QML_WORK/cache:/cache,$QML_REPO:/quirkml" \
+      -B "$QML_WORK/cache/g4data:/g4data" \
       --env COLLIDERML_CACHE=/cache "$QML_SIF" bash -c "$setup $1"
   else
     "$QML_RT" run --rm \

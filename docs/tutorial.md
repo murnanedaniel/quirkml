@@ -7,17 +7,17 @@ Everything except quirk-gen runs inside the OpenDataDetector software image, the
 ## What you need
 
 - A Linux machine (x86_64) with one of: Docker, Podman, Apptainer (or Singularity), or podman-hpc on NERSC. The scripts take the first one they find; set `QUIRKML_RUNTIME` to choose (for example `QUIRKML_RUNTIME=apptainer`).
-- cvmfs with `sft.cern.ch`, for quirk-gen (MadGraph + Pythia8 from the LCG_109 view). lxplus and most HEP clusters have it. If the host isn't el9, the scripts enter an el9 image through shifter (NERSC) or Apptainer.
-- `git` and `python3` (standard library only), and about 10 GB of disk for the work directory.
+- cvmfs with `sft.cern.ch`, for quirk-gen (MadGraph + Pythia8 from the LCG_109 view), unless your image has Pythia8's python bindings (see `docs/colliderml.md`). lxplus and most HEP clusters have it. If the host isn't el9, the scripts enter an el9 image through shifter (NERSC) or Apptainer.
+- `git` and `python3` (standard library only), and about 15 GB of disk for the work directory.
 - For reading the output: python with `numpy`, `pandas` and `pyarrow`.
 
-On NERSC, put the work directory on `$PSCRATCH`: MadGraph doesn't run on CFS. `$PSCRATCH` is purged after 8 weeks without access, so copy the parquet you want to keep.
+Work in a directory on a local or scratch file system with that much space (see "Site notes" at the end for NERSC).
 
 ## 1. Clone and set up (once)
 
 ```bash
 git clone https://github.com/murnanedaniel/quirkml.git
-bash quirkml/colliderml/setup.sh $PSCRATCH/quirks      # or any directory with ~10 GB free
+bash quirkml/colliderml/setup.sh quirks
 ```
 
 `setup.sh` puts into the work directory (`quirks/` here):
@@ -25,9 +25,9 @@ bash quirkml/colliderml/setup.sh $PSCRATCH/quirks      # or any directory with ~
 - `colliderml-production/`: the ColliderML stage scripts, branch `quirk/pilot-integration` of [colliderml-production](https://github.com/OpenDataDetector/colliderml-production) at a fixed commit;
 - the image `ghcr.io/opendatadetector/sw:pr-8` (about 6 GB; with Apptainer as `sw-pr-8.sif`, otherwise in the runtime's own store);
 - `plugin/libQuirkDDG4.so`, the quirk plugin built inside that image;
-- `cache/`: Geant4 data files (about 2 GB, downloaded the first time the image environment is set up).
+- `cache/`: Geant4 data files (2-4 GB, downloaded the first time the image environment is set up).
 
-It took 3.5 minutes with podman-hpc on a NERSC login node, plus the image download. Rerunning it keeps what is already there.
+It took 1-4 minutes in our tests, plus the image and Geant4 data downloads. Rerunning it keeps what is already there.
 
 ## 2. Describe the sample (one file)
 
@@ -35,7 +35,7 @@ It took 3.5 minutes with podman-hpc on a NERSC login node, plus the image downlo
 cp quirkml/colliderml/sample.yaml my_sample.yaml
 ```
 
-Set `work_dir` to the directory you gave `setup.sh`, then the physics point: `mass_gev`, `lambda_ev` (the string scale), `mu` (0 for no pileup) and `events`. Then:
+`work_dir: quirks` already matches the command above (a relative path is relative to the settings file). Set the physics point: `mass_gev`, `lambda_ev` (the string scale), `mu` (0 for no pileup) and `events`. Then:
 
 ```bash
 python3 quirkml/colliderml/make_sample.py my_sample.yaml
@@ -59,7 +59,7 @@ quirk-gen's `--lambda` is only recorded in `events.json`. The string acts only i
 bash quirkml/colliderml/run_sample.sh quirks/configs/m400_L1000_mu0
 ```
 
-On NERSC, run it on a compute node, e.g. `salloc -A <your account> -C cpu -q shared_interactive -t 60 -c 8 srun -n 1 -c 8 bash quirkml/colliderml/run_sample.sh ...`. On other clusters, use an interactive job or a batch job with 8 cores.
+Run it where you have 8 cores for up to an hour: a workstation, or an interactive or batch job on a cluster.
 
 `run_sample.sh` runs three stages in the image, checks that each wrote its output before starting the next, and stops with a `STOP:` line naming what is missing. Logs are in `quirks/configs/<dataset>/logs/`. To restart from stage `n`, add `n` after the config directory.
 
@@ -69,7 +69,7 @@ On NERSC, run it on a compute node, e.g. `salloc -A <your account> -C cpu -q sha
 | 2 | Geant4 on the ODD v6 tracker with QuirkDDG4 (one core: the two quirks share one string object) |
 | 3 | ACTS geometric digitisation, written as parquet |
 
-Times with podman-hpc on one NERSC node, m = 400 GeV, Lambda = 1 keV: mu = 0 with 20 events took 3.7 minutes in all (simulation 2.9 minutes). Each event had two quirks with about 27 hits from them. With mu = 200 the simulation takes a few minutes per event, and an event has about 200,000 tracker hits.
+Times on one node of a CPU cluster (podman-hpc), m = 400 GeV, Lambda = 1 keV: mu = 0 with 20 events took 3.7 minutes in all (simulation 2.9 minutes); mu = 200 with 5 events took 21 minutes. Each event had two quirks with about 27 hits from them; at mu = 200 an event has about 200,000 tracker hits.
 
 ## 5. Read it
 
@@ -90,3 +90,9 @@ ev = ds.event(ds.event_ids[0])     # hits, particles, truth_edges
 - **Apptainer fills your home directory.** The scripts put Apptainer's cache in `<work_dir>/cache/apptainer`; if you run Apptainer by hand, set `APPTAINER_CACHEDIR` yourself.
 - **Changing the mass without rerunning step 3.** `run_sample.sh` compares `events.json` with the settings file and stops.
 - **Many events, or a high string tension.** Simulation is single-threaded and its cost grows with the tension: about 1-3 minutes per pair-only event at Lambda = 10-30 keV, and at 100 keV one event didn't finish in 20 minutes (`grid/README.md`). Start with tens of events.
+
+## Site notes
+
+- **NERSC (Perlmutter).** podman-hpc is found first. Work on `$PSCRATCH` (MadGraph fails on CFS, and home is small); it is purged after 8 weeks without access, so copy the parquet you want to keep. quirk-gen enters the LCG view through shifter. Run step 4 in a compute allocation, e.g. `salloc -A <account> -C cpu -q shared_interactive -t 60 -c 8 srun -n 1 -c 8 bash quirkml/colliderml/run_sample.sh ...`.
+- **lxplus and other el9 hosts with cvmfs.** quirk-gen uses the LCG view directly. For the image, use Apptainer (`QUIRKML_RUNTIME=apptainer`); keep the work directory off AFS home, which is too small.
+

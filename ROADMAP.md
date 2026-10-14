@@ -54,7 +54,7 @@ Each stage ends with a check that a new person can repeat. Nothing gets pushed t
 2. Docs reviewed by Daniel; nothing ATLAS-internal; licences checked for anything taken from quirk-gen, quirk-tracking or quirkviz (none of them has a licence).
 3. Give Jackson and his student access to github.com/murnanedaniel/quirkml (private) and walk the student through the tutorial.
 
-## Stage 7: anyone on m4958 can make a sample - done (2026-10-14)
+## Stage 7: anyone on m4958 can make a sample - done (2026-10-14), replaced by stage 8
 
 A new member of the m4958 project goes from nothing to tracker-only quirk parquet with `docs/tutorial.md`: four commands and one settings file. Before this stage, the route worked only from Daniel's account.
 
@@ -69,7 +69,7 @@ Not tested: a different user account (their podman image pull, group read access
 
 Goal: the tutorial works for people outside m4958 and outside NERSC (Jackson's group), on any Linux machine with Docker, Podman or Apptainer, plus cvmfs for quirk-gen. Stage 7 drove the stages through `run_stage.py`, the NERSC production driver, which assumes m4958 paths, podman-hpc and a Slurm account.
 
-1. Use the ColliderML container route instead (the one `colliderml.simulate()` uses): each stage script runs directly in the ODD image with `--config` and `--output`, with only three host folders mounted (`/work`, `/workspace`, `/cache`). A small runner picks podman-hpc, Docker, Podman or Apptainer.
+1. Use the ColliderML container route instead (the one `colliderml.simulate()` uses): each stage script runs directly in the ODD image with `--config` and `--output`, with four host folders mounted (`/work`, `/workspace`, `/cache`, `/quirkml`). A small runner picks podman-hpc, Docker, Podman or Apptainer.
 2. Stage configs written with container paths; no `run_stage.py`, no Slurm account, no python env on the host for running. The packaging stage (a production postprocessing step) is dropped; the loader reads the per-run parquet.
 3. Geant4 data downloaded into the user's own cache on first use, not read from m4958.
 4. quirk-gen: an LCG_109 view from cvmfs, entered directly on an el9 host, through shifter on NERSC, or through Apptainer with an el9 image elsewhere.

@@ -1,6 +1,6 @@
 # Reconstruction starting points
 
-Status of each starting point, as of 2026-10-14. "Runs" means we ran it on the ColliderML pilot parquet (`colliderml/pilot_*`).
+Status of each starting point, as of 2026-10-14. "Runs" means we ran it on the parquet of the 2026-10-14 pilots (made with the configs in `colliderml/pilot_*`; packaged layout, stored outside this repo). The loader also reads the per-run layout that `docs/tutorial.md` produces.
 
 ## Data access
 

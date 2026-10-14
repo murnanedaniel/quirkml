@@ -41,7 +41,10 @@ def main():
     a = ap.parse_args()
     s = read_settings(a.settings)
 
-    work = Path(os.path.expanduser(os.path.expandvars(s["work_dir"]))).resolve()
+    work = Path(os.path.expanduser(os.path.expandvars(s["work_dir"])))
+    if not work.is_absolute():                      # relative to the settings file
+        work = Path(a.settings).resolve().parent / work
+    work = work.resolve()
     lam, mass, mu, events, seed = float(s["lambda_ev"]), float(s["mass_gev"]), int(s["mu"]), int(s["events"]), int(s["seed"])
     dataset = f"m{mass:g}_L{lam:g}_mu{mu}"
     if not (work / "colliderml-production" / "scripts").is_dir():
