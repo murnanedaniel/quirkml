@@ -40,8 +40,8 @@ Each stage ends with a check that a new person can repeat. Nothing gets pushed t
 ## Stage 4: grid definition and production plan - partly done
 
 - Grid proposal in `grid/grid.yaml`; `grid/make_configs.py` writes the stage configs for any point from the pilot templates.
-- QuirkDDG4 cost versus tension: `grid/README.md`.
-- Open: agree the grid; decide production `MaxBoost`; storage and batch plan (Daniel).
+- QuirkDDG4 cost versus tension (`grid/README.md`): about 1-3 min per pair-only event up to 10-30 keV; at 100 keV and 1 MeV one event doesn't finish in 20 minutes. The unresolved and tight regimes need a different simulation treatment.
+- Open: agree the grid; how to simulate Lambda above ~30 keV (Daniel, Jackson); production `MaxBoost`; storage and batch plan (Daniel).
 
 ## Stage 5: ML and non-ML starting points - partly done
 

@@ -1,0 +1,10 @@
+L3000_mb1e-2 lambda_eV=3000 stringforce=45609.576459114556 maxboost=1e-2 rc=0 wall_s=51.4 finished=1
+L3000_mb1e-3 lambda_eV=3000 stringforce=45609.576459114556 maxboost=1e-3 rc=0 wall_s=64.9 finished=1
+L10000_mb1e-2 lambda_eV=10000 stringforce=506773.0717679395 maxboost=1e-2 rc=0 wall_s=68.5 finished=1
+L10000_mb1e-3 lambda_eV=10000 stringforce=506773.0717679395 maxboost=1e-3 rc=0 wall_s=158.4 finished=1
+L30000_mb1e-2 lambda_eV=30000 stringforce=4560957.645911456 maxboost=1e-2 rc=0 wall_s=186.2 finished=1
+L30000_mb1e-3 lambda_eV=30000 stringforce=4560957.645911456 maxboost=1e-3 rc=0 wall_s=1198.6 finished=1
+L100000_mb1e-2 lambda_eV=100000 stringforce=50677307.176793955 maxboost=1e-2 rc=124 wall_s=1200.2 finished=0
+L100000_mb1e-3 lambda_eV=100000 stringforce=50677307.176793955 maxboost=1e-3 rc=124 wall_s=1200.2 finished=0
+L1000000_mb1e-3 lambda_eV=1000000 stringforce=5067730717.679395 maxboost=1e-3 rc=124 wall_s=1200.1 finished=0
+L1000000_mb1e-2 lambda_eV=1000000 stringforce=5067730717.679395 maxboost=1e-2 rc=124 wall_s=1200.1 finished=0
