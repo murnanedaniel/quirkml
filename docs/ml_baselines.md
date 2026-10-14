@@ -41,5 +41,5 @@ With truth hit assignment and long strips left out, the quirk pair's hits fit a 
 
 ### Ionisation on the pilot
 
-Truncated mean (lowest 70%) of the sim-hit energy deposit per particle, m = 400 GeV, Lambda = 1 keV, mu = 0: quirks 93 keV per hit (16-84%: 55-161; 40 quirks), other charged particles 76 keV (43-107; 5348 particles). No quirk passes the 99.9% point of the other particles. These quirks are fast (p around 700 GeV, so beta*gamma around 1.7) and ionise almost like minimum-ionising tracks; ionisation is expected to matter for heavier or slower quirks, which the pilot doesn't cover.
+Truncated mean (lowest 70%) of the sim-hit energy deposit per particle, m = 400 GeV, Lambda = 1 keV, mu = 0: quirks 93 keV per hit (16-84%: 55-161; 40 quirks), other charged particles 76 keV (43-107; 5348 particles). No quirk passes the 99.9% point of the other particles. These quirks are fast (in the first event p = 710 and 1100 GeV, beta*gamma = 1.8 and 2.7) and ionise almost like minimum-ionising tracks; ionisation is expected to matter for heavier or slower quirks, which the pilot doesn't cover.
 
