@@ -1,7 +1,7 @@
 # Grid
 
 - `grid.yaml`: proposed mass x Lambda x pileup grid. To be agreed; nothing produced.
-- `make_configs.py`: writes the four ColliderML stage configs for one grid point from the pilot templates (`colliderml/pilot_*`).
+- Configs for a grid point: one settings file per point, through `colliderml/make_sample.py` (`docs/tutorial.md`).
 - `run_tension_cost.sh`, `cost_vs_tension.txt`: QuirkDDG4 run time against string tension.
 
 ## QuirkDDG4 cost against tension

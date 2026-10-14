@@ -22,14 +22,14 @@ This repo takes that HepMC3 and does:
 |---|---|
 | `sim/QuirkDDG4/` | DDG4 plugin: Athena's quirk string transport ported to DD4hep/ddsim (Geant4 11.3). `build.sh` builds for LCG_107, `build_colliderml.sh` for the ColliderML sim image |
 | `sim/run_quirk_ddsim.py`, `sim/run_in_shifter.sh` | stand-alone ddsim driver for the plugin, and a wrapper for the el9 container on Perlmutter |
-| `colliderml/` | quirk-gen file converter and worked stage configs for the ColliderML chain (`pilot_m400_L1000_mu0`, `pilot_m400_L1000_mu200`) |
+| `colliderml/` | the ColliderML route (`docs/tutorial.md`): `setup.sh`, `sample.yaml`, `make_sample.py`, `run_sample.sh`, stage-config templates, the quirk-gen file converter, and the configs the pilots ran with (`pilot_*`) |
 | `grid/` | grid proposal and a generator for per-point stage configs |
 | `ml/` | parquet loader with time-ordered quirk truth, writer for quirk-tracking, coplanarity and ionisation baselines |
 | `quirk_sim/` | fast quirk-pair model in Python/numba: straight string, both ends at the same lab time, RK4 in lab time, no energy loss |
 | `fit/` | coupled two-quirk fit of mass, tension and momenta to hits, with two-helix and 1/r^2 alternatives, and a road search kernel for pileup |
-| `gen/` | small Pythia8 Hidden Valley generator for quick tests (quirk-gen is the production generator) |
+| `gen/` | `run_quirkgen.sh` (quirk-gen for one sample), and a small Pythia8 Hidden Valley generator for quick tests |
 | `validation/` | Geant4 vs quirk_sim vs exact-motion comparisons |
-| `docs/` | `colliderml.md` (the chain, step by step), `validation_status.md`, `ml_baselines.md` |
+| `docs/` | `tutorial.md` (make a sample), `colliderml.md` (what each step does), `validation_status.md`, `ml_baselines.md` |
 
 ## Quick start (Perlmutter)
 
