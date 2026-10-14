@@ -65,6 +65,16 @@ A new member of the m4958 project goes from nothing to tracker-only quirk parque
 
 Not tested: a different user account (their podman image pull, group read access to the shared Geant4 data). That needs Jackson's student or another m4958 member. People outside m4958 would need the containers' mounts generalised.
 
+## Stage 8: anyone with a container runtime can make a sample - in progress (2026-10-14)
+
+Goal: the tutorial works for people outside m4958 and outside NERSC (Jackson's group), on any Linux machine with Docker, Podman or Apptainer, plus cvmfs for quirk-gen. Stage 7 drove the stages through `run_stage.py`, the NERSC production driver, which assumes m4958 paths, podman-hpc and a Slurm account.
+
+1. Use the ColliderML container route instead (the one `colliderml.simulate()` uses): each stage script runs directly in the ODD image with `--config` and `--output`, with only three host folders mounted (`/work`, `/workspace`, `/cache`). A small runner picks podman-hpc, Docker, Podman or Apptainer.
+2. Stage configs written with container paths; no `run_stage.py`, no Slurm account, no python env on the host for running. The packaging stage (a production postprocessing step) is dropped; the loader reads the per-run parquet.
+3. Geant4 data downloaded into the user's own cache on first use, not read from m4958.
+4. quirk-gen: an LCG_109 view from cvmfs, entered directly on an el9 host, through shifter on NERSC, or through Apptainer with an el9 image elsewhere.
+5. Test on Perlmutter with podman-hpc and with Apptainer (from cvmfs), from fresh clones in a directory outside m4958 ($PSCRATCH). Docker can't be tested here; it gets the same command as the ColliderML library uses.
+
 ## Open questions for Daniel / Jackson / Makayla
 
 - Which string model is closer to the true string dynamics with the field on (QuirkDDG4 and quirk_sim differ by 2-4 mm), and whether Athena shows the same ionisation effect (stage 1).
