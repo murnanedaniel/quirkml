@@ -1,0 +1,25 @@
+# Quirk sample, stage 1: generate Pythia8 SoftQCD pileup and merge it with the quirk-gen
+# events at generator level (ACTS HepMC3Reader), with Gaussian beam-spot smearing of every vertex.
+campaign: "{CAMPAIGN}"
+dataset: "{DATASET}"
+version: "{VERSION}"
+stage: "pythia_generation"
+common:
+  container: "ghcr.io/opendatadetector/sw:pr-8"
+  cache_dir: "{CACHE_DIR}"
+  output_base_dir: "{RUNS_BASE}"   # run_stage writes config copies, logs and validation here (default: the public production tree)
+job_config:
+  execution_mode: "interactive"
+debug_output_dir: {RUN_DIR}
+events: {EVENTS}
+threads: 1
+seed: {SEED_GEN}
+pileup: {MU}
+poisson_sample: true
+poisson_buffer_sigma: 5.0
+hard_process:                          # unset: the hard scatter comes from hard_scatter_file
+merge: true
+hard_scatter_file: {RUN_DIR}/events_hepmc2.hepmc   # quirk-gen output converted with convert_quirkgen_hepmc.sh
+vertex_sigma_xy: 0.0125                # mm
+vertex_sigma_z: 55.5                   # mm
+vertex_sigma_t: 0.185                  # ns

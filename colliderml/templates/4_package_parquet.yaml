@@ -1,0 +1,19 @@
+# Quirk sample, stage 4: package the run into the released ColliderML parquet layout.
+campaign: "{CAMPAIGN}"
+dataset: "{DATASET}"
+version: "{VERSION}"
+stage: "package_parquet"
+stage_script_map:
+  package_parquet: "postprocessing/package_native_parquet.py"
+common:
+  container: "ghcr.io/opendatadetector/sw:pr-8"
+  cache_dir: "{CACHE_DIR}"
+  output_base_dir: "{RUNS_BASE}"   # run_stage writes config copies, logs and validation here (default: the public production tree)
+job_config:
+  execution_mode: "interactive"
+input_base_dir: {RUNS_BASE}
+output_base_dir: {RUNS_BASE}
+run_size: {EVENTS}
+chunk_size: {EVENTS}
+compression: "snappy"
+row_group_size: 100000
