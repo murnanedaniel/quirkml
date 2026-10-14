@@ -46,7 +46,7 @@ bash sim/run_in_shifter.sh --compact $ODD_XML \
 
 `--string-force` is the tension Lambda^2/hbar c in MeV/mm (Lambda = 1 keV gives 5067.73); quirk-gen writes the same number as `stringforce_mev_per_mm`. quirk-gen's quirk is PDG +10000100 with charge +1, and the plugin gives +PDG the charge `--charge`. The plugin is single-threaded, because the two quirks share one string object.
 
-These commands are for a quick stand-alone run. They work on quirk-gen files once converted with `colliderml/convert_quirkgen_hepmc.sh`; the converted pilot file ran through the ColliderML chain. For samples, use the ColliderML chain (`docs/colliderml.md`).
+These commands are for a quick stand-alone run and have not been tried on a quirk-gen file. quirk-gen files need converting first (`colliderml/convert_quirkgen_hepmc.sh`); the converted file did run through the ColliderML chain, which is the route for samples (`docs/colliderml.md`).
 
 ## What has been checked
 
