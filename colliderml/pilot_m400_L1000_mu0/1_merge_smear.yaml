@@ -1,0 +1,19 @@
+# Quirk pilot, stage 1: Gaussian beam-spot smearing of the quirk-gen events (no pileup).
+# quirk-gen puts every vertex at the origin; these are the ColliderML hard-scatter widths.
+campaign: "quirk_pilot"
+dataset: "m400_L1000_mu0"
+version: "v0"
+stage: "merge_smear"
+common:
+  container: "ghcr.io/opendatadetector/sw:pr-8"
+  container_tarball: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/stress_mu200/sw_pr8_image.tar"
+  cache_dir: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/software/colliderml-prod-container/.cache"
+  output_base_dir: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_erc/out/stage3/pilot_tree"   # run_stage writes config copies and validation here; default is the public production tree
+job_config:
+  execution_mode: "interactive"
+debug_output_dir: /global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_erc/out/stage3/pilot_tree/quirk_pilot/m400_L1000_mu0/v0/runs/0
+seed: 42
+input_filename: events_hepmc2.hepmc    # quirk-gen output converted with convert_quirkgen_hepmc.sh
+vertex_sigma_xy: 0.0125               # mm
+vertex_sigma_z: 55.5                  # mm
+vertex_sigma_t: 0.185                 # ns

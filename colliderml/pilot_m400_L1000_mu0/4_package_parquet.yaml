@@ -1,0 +1,20 @@
+# Quirk pilot, stage 4: package the run into the released ColliderML parquet layout.
+campaign: "quirk_pilot"
+dataset: "m400_L1000_mu0"
+version: "v0"
+stage: "package_parquet"
+stage_script_map:
+  package_parquet: "postprocessing/package_native_parquet.py"
+common:
+  container: "ghcr.io/opendatadetector/sw:pr-8"
+  container_tarball: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/stress_mu200/sw_pr8_image.tar"
+  cache_dir: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/software/colliderml-prod-container/.cache"
+  output_base_dir: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_erc/out/stage3/pilot_tree"   # run_stage writes config copies and validation here; default is the public production tree
+job_config:
+  execution_mode: "interactive"
+input_base_dir: /global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_erc/out/stage3/pilot_tree
+output_base_dir: /global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_erc/out/stage3/pilot_tree
+run_size: 20
+chunk_size: 20
+compression: "snappy"
+row_group_size: 100000

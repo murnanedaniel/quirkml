@@ -1,0 +1,26 @@
+# Quirk pilot (mu = 200), stage 1: generate Pythia8 SoftQCD pileup and merge it with the quirk-gen
+# events at generator level (ACTS HepMC3Reader), with Gaussian beam-spot smearing of every vertex.
+campaign: "quirk_pilot"
+dataset: "m400_L1000_mu200"
+version: "v0"
+stage: "pythia_generation"
+common:
+  container: "ghcr.io/opendatadetector/sw:pr-8"
+  container_tarball: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/stress_mu200/sw_pr8_image.tar"
+  cache_dir: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/software/colliderml-prod-container/.cache"
+  output_base_dir: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_erc/out/stage3/pilot_tree"   # run_stage writes config copies and validation here; default is the public production tree
+job_config:
+  execution_mode: "interactive"
+debug_output_dir: /global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_erc/out/stage3/pilot_tree/quirk_pilot/m400_L1000_mu200/v0/runs/0
+events: 5
+threads: 1
+seed: 42
+pileup: 200
+poisson_sample: true
+poisson_buffer_sigma: 5.0
+hard_process:                          # unset: the hard scatter comes from hard_scatter_file
+merge: true
+hard_scatter_file: /global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_erc/out/stage3/pilot_tree/quirk_pilot/m400_L1000_mu200/v0/runs/0/events_hepmc2.hepmc   # quirk-gen output converted with convert_quirkgen_hepmc.sh
+vertex_sigma_xy: 0.0125                # mm
+vertex_sigma_z: 55.5                   # mm
+vertex_sigma_t: 0.185                  # ns

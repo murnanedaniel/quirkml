@@ -1,0 +1,41 @@
+# Quirk pilot, stage 2: Geant4 on ODD v6 (tracker only) with the QuirkDDG4 plugin (user_physics).
+campaign: "quirk_pilot"
+dataset: "m400_L1000_mu0"
+version: "v0"
+stage: "simulation"
+common:
+  container: "ghcr.io/opendatadetector/sw:pr-8"
+  container_tarball: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/stress_mu200/sw_pr8_image.tar"
+  cache_dir: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/software/colliderml-prod-container/.cache"
+  output_base_dir: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_erc/out/stage3/pilot_tree"   # run_stage writes config copies and validation here; default is the public production tree
+job_config:
+  execution_mode: "interactive"
+debug_output_dir: /global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_erc/out/stage3/pilot_tree/quirk_pilot/m400_L1000_mu0/v0/runs/0
+events: 20
+threads: 1                            # QuirkDDG4 is single-threaded (shared string state)
+seed: 4242
+input_filename: merged_events.hepmc3
+minimalKineticEnergy: 0.1
+truthParticleHandler: "Geant4FullTruthParticleHandler"
+vertexOffset: [0.0, 0.0, 0.0, 0.0]
+vertexSigma:  [0.0, 0.0, 0.0, 0.0]    # smearing was applied in stage 1
+odd_compact_files:
+  - /opt/odd-install/share/OpenDataDetector/xml/OpenDataDetectorDefs.xml
+  - /opt/odd-install/share/OpenDataDetector/xml/OpenDataDetectorTracker.xml
+  - /global/cfs/cdirs/m4958/usr/danieltm/ColliderML/software/colliderml-prod-container/configs_production/drift_beamspot/geometry/tracker_fields_plugins.xml
+ddsim_printLevel: 6
+filter_g4_warnings: true
+user_physics:
+  - type: QuirkPhysics/Quirks
+    library: /global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirkml/sim/QuirkDDG4/build-pr-8/lib/libQuirkDDG4.so
+    single_thread: true
+    properties:                       # values from quirk-gen's events.json
+      Mass: 400000.0                  # MeV  (mass_gev x 1000)
+      Charge: 1.0                     # quirk-gen: +10000100 has charge +1
+      PdgId: 10000100
+      StringForce: 5068.0             # MeV/mm (stringforce_mev_per_mm; Lambda = 1 keV)
+      FirstStringLen: 1.0e-6          # mm
+      MaxBoost: 1.0e-3                # 1e-2 is not converged for slack strings (docs/validation_status.md)
+      MaxMergeT: 1.0e-6
+      MaxMergeMag: 1.0e-6
+      EnableEM: true                  # full EM on the quirks (ionisation, msc, brems, pair)

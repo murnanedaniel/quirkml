@@ -1,0 +1,10 @@
+# Proposed quirk grid (to be agreed by Daniel, Makayla, Jackson). Nothing here has been produced.
+# One quirk-gen run per mass serves every Lambda (Lambda only enters the detector simulation).
+masses_gev: [200, 400, 800, 1200, 1500]
+# sqrt(sigma) = Lambda in eV. Slack (0.1-30 keV), unresolved (30 keV-5 MeV), tight (MeV-GeV).
+# QuirkDDG4 run time per pair-only event rises with Lambda (grid/README.md); points above
+# 30 keV are not yet costed.
+lambdas_ev: [100, 300, 1000, 3000, 10000, 30000, 100000, 1000000]
+pileup_mu: [0, 60, 140, 200]
+events_per_point: 10000          # placeholder
+max_boost: 1.0e-3                 # 1e-2 is not converged for slack strings (docs/validation_status.md)

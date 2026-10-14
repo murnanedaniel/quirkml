@@ -1,0 +1,32 @@
+# Quirk pilot, stage 3: ACTS digitisation + native parquet (drift_beamspot settings).
+# Note: ACTS seeding/CKF/truth tracking assume helices; for quirks use tracker_simhits and tracker_hits.
+campaign: "quirk_pilot"
+dataset: "m400_L1000_mu0"
+version: "v0"
+stage: "digitization"
+common:
+  container: "ghcr.io/opendatadetector/sw:pr-8"
+  container_tarball: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/stress_mu200/sw_pr8_image.tar"
+  cache_dir: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/software/colliderml-prod-container/.cache"
+  output_base_dir: "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_erc/out/stage3/pilot_tree"   # run_stage writes config copies and validation here; default is the public production tree
+job_config:
+  execution_mode: "interactive"
+debug_output_dir: /global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_erc/out/stage3/pilot_tree/quirk_pilot/m400_L1000_mu0/v0/runs/0
+events: 20
+threads: 8
+seed: 4343
+odd_geo_dir: /opt/odd
+digi_config: /opt/odd/config/odd-digi-geometric-config.json
+output_parquet_arrow: True
+digi: True
+reco: True
+num_seeds_per_spm: 40
+write_helix_parameters: True
+truth_tracking: true
+truth_tracking_fitter: kf
+truth_tracking_prefit: gx2f
+truth_tracking_delta_r: [10.0, 1.0e6]
+truth_tracking_abs_delta_z: [0.0, 1.0e6]
+parquet_events_per_shard: 100000
+parquet_events_per_row_group: 1000
+seed_impact_max: 8.0
