@@ -12,6 +12,8 @@ source "$CFG/sample.env"
 QUIRKML=$(cd "$(dirname "$0")/.." && pwd)
 source "$QUIRKML/colliderml/container.sh" "$WORK_DIR" || exit 1
 RUN_DIR=$WORK_DIR/runs/$DATASET
+[ "$(cat "$WORK_DIR/plugin/IMAGE" 2>/dev/null)" = "$QUIRKML_IMAGE" ] || {
+  echo "STOP: the plugin in $WORK_DIR/plugin was not built for $QUIRKML_IMAGE: rerun colliderml/setup.sh $WORK_DIR" >&2; exit 1; }
 mkdir -p "$CFG/logs"
 
 die() { echo "STOP: $*" >&2; exit 1; }

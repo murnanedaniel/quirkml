@@ -29,10 +29,13 @@ qml_pull
 echo "   ok"
 
 echo "== 3/3 QuirkDDG4 plugin"
-if [ ! -f "$WORK/plugin/libQuirkDDG4.so" ]; then
-  qml_run "cmake -S /quirkml/sim/QuirkDDG4 -B /work/plugin/build -DCMAKE_BUILD_TYPE=Release >/dev/null &&
+# The plugin is built against one image; rebuild when QUIRKML_IMAGE changes.
+if [ "$(cat "$WORK/plugin/IMAGE" 2>/dev/null)" != "$QUIRKML_IMAGE" ]; then
+  mkdir -p "$WORK/plugin"; find "$WORK/plugin" -maxdepth 1 -type f -delete
+  qml_run "cmake --fresh -S /quirkml/sim/QuirkDDG4 -B /work/plugin/build -DCMAKE_BUILD_TYPE=Release >/dev/null &&
            cmake --build /work/plugin/build -j8 2>&1 | grep -E 'error|Built target' ;
            cp /work/plugin/build/lib/libQuirkDDG4.so /work/plugin/build/lib/libQuirkDDG4.components /work/plugin/"
+  [ -f "$WORK/plugin/libQuirkDDG4.so" ] && echo "$QUIRKML_IMAGE" > "$WORK/plugin/IMAGE"
 fi
 ls "$WORK/plugin/libQuirkDDG4.so"
 
