@@ -1,0 +1,5 @@
+L1000 empty t0-2: Emax 516.4630 GeV | t5-7: Emax 516.4620 GeV | t10-12: Emax 516.4620 GeV | t20-22: Emax 516.4660 GeV | t30-32: Emax 516.4700 GeV | pdgs [-4900101, 4900101]
+L1000 odd t0-2: Emax 516.4640 GeV | t5-7: Emax 516.8730 GeV | t10-12: Emax 517.2190 GeV | t20-22: Emax 517.2000 GeV | t30-32: Emax 517.8760 GeV | pdgs [-4900101, 4900101]
+L500 empty t0-2: Emax 663.3020 GeV | t5-7: Emax 628.1090 GeV | t10-12: Emax 663.3130 GeV | t20-22: Emax 663.3700 GeV | t30-32: Emax 663.4300 GeV | pdgs [-4900101.0, 4900101.0, nan]
+L500 odd t0-2: Emax 663.2900 GeV | t5-7: Emax 627.0580 GeV | t10-12: Emax 662.6770 GeV | t20-22: Emax 655.3240 GeV | t30-32: Emax 651.7440 GeV | pdgs [-4900101, 4900101]
+

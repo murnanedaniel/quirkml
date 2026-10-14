@@ -1,0 +1,8 @@
+quirkml
+Copyright 2026 the quirkml authors.
+
+sim/QuirkDDG4/src is a port of the Athena package Simulation/G4Extensions/Quirks
+(https://gitlab.cern.ch/atlas/athena), Copyright (C) 2002-2017 CERN for the benefit of the
+ATLAS collaboration, released under the Apache License 2.0. Source headers are kept unchanged.
+QuirkTransportation is derived from Geant4's G4Transportation and carries the Geant4 Software
+License notice in its header.

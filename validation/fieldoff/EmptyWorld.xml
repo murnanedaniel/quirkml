@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Field-free world with no detector volumes: pure quirk string transport test (no boundaries). -->
+<lccdd>
+  <includes>
+    <gdmlFile ref="elements.xml"/>
+    <gdmlFile ref="OpenDataMaterials.xml"/>
+  </includes>
+  <info name="EmptyWorld" title="EmptyWorld" author="quirk test" url="" status="test" version="0"/>
+  <define>
+    <constant name="world_size" value="10.*m"/>
+    <constant name="world_x" value="world_size"/>
+    <constant name="world_y" value="world_size"/>
+    <constant name="world_z" value="world_size"/>
+    <constant name="tracker_region_rmax" value="1080*mm"/>
+    <constant name="tracker_region_zmax" value="3030*mm"/>
+  </define>
+  <fields>
+    <field type="solenoid" name="GlobalSolenoid" inner_field="0*tesla" outer_field="0*tesla"
+           zmax="3.0*m" inner_radius="1160*mm" outer_radius="1200*mm"/>
+  </fields>
+</lccdd>

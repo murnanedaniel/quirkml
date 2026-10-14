@@ -1,0 +1,23 @@
+== L500: k_GeV=234.1, gamma=1.196, beta=0.5488, period_rest_ns=2.466, first_crossing_rest_ns=1.233
+quirk_sim dt=0.02 q=+1 (max mm vs closed form)  t<1:0.0025  t<2:0.0040  t<5:0.0243  t<10:0.0566  t<20:0.0566  t<40:0.0566
+quirk_sim dt=0.02 q=-1 (max mm vs closed form)  t<1:0.0021  t<2:0.0096  t<5:0.0243  t<10:0.0668  t<20:0.0668  t<40:0.0668
+quirk_sim dt=0.005 q=+1 (max mm vs closed form)  t<1:0.0006  t<2:0.0007  t<5:0.0019  t<10:0.0069  t<20:0.0069  t<40:0.0069
+quirk_sim dt=0.005 q=-1 (max mm vs closed form)  t<1:0.0005  t<2:0.0011  t<5:0.0019  t<10:0.0082  t<20:0.0082  t<40:0.0082
+geant4 odd_L500_mb1e-2 q=+1 (max mm vs closed form, 956 steps)  t<1:0.0086  t<2:0.0135  t<5:0.0466  t<10:0.1258  t<20:0.1258  t<40:0.1258
+geant4 odd_L500_mb1e-2 q=-1 (max mm vs closed form, 956 steps)  t<1:0.0105  t<2:0.0139  t<5:0.0650  t<10:0.1390  t<20:0.1390  t<40:0.1390
+geant4 empty_L500_mb1e-2 q=+1 (max mm vs closed form, 889 steps)  t<1:0.0008  t<2:0.0019  t<5:0.0046  t<10:0.0145  t<20:0.0145  t<40:0.0145
+geant4 empty_L500_mb1e-2 q=-1 (max mm vs closed form, 905 steps)  t<1:0.0007  t<2:0.0030  t<5:0.0073  t<10:0.0158  t<20:0.0158  t<40:0.0158
+geant4 empty_L500_mb1e-3 q=+1 (max mm vs closed form, 8731 steps)  t<1:0.0009  t<2:0.0020  t<5:0.0052  t<10:0.0207  t<20:0.0207  t<40:0.0207
+geant4 empty_L500_mb1e-3 q=-1 (max mm vs closed form, 8786 steps)  t<1:0.0007  t<2:0.0030  t<5:0.0089  t<10:0.0208  t<20:0.0208  t<40:0.0208
+== L1000: k_GeV=202.2, gamma=1.036, beta=0.2597, period_rest_ns=0.5324, first_crossing_rest_ns=0.2662
+quirk_sim dt=0.02 q=+1 (max mm vs closed form)  t<1:0.0028  t<2:0.0032  t<5:0.0085  t<10:0.2312  t<20:0.8223  t<40:2.2970
+quirk_sim dt=0.02 q=-1 (max mm vs closed form)  t<1:0.0028  t<2:0.0032  t<5:0.0085  t<10:0.2308  t<20:0.8169  t<40:2.3205
+quirk_sim dt=0.005 q=+1 (max mm vs closed form)  t<1:0.0011  t<2:0.0078  t<5:0.1129  t<10:0.4578  t<20:0.6027  t<40:1.1661
+quirk_sim dt=0.005 q=-1 (max mm vs closed form)  t<1:0.0011  t<2:0.0078  t<5:0.1128  t<10:0.4561  t<20:0.6030  t<40:1.1775
+geant4 odd_L1000_mb1e-2 q=+1 (max mm vs closed form, 17049 steps)  t<1:0.0009  t<2:0.0018  t<5:0.6619  t<10:2.7025  t<20:7.8033  t<40:23.5664
+geant4 odd_L1000_mb1e-2 q=-1 (max mm vs closed form, 16830 steps)  t<1:0.0009  t<2:0.0016  t<5:0.7287  t<10:2.8121  t<20:7.9708  t<40:23.3281
+geant4 empty_L1000_mb1e-2 q=+1 (max mm vs closed form, 19285 steps)  t<1:0.0008  t<2:0.0021  t<5:0.0076  t<10:0.0306  t<20:0.1319  t<40:0.5021
+geant4 empty_L1000_mb1e-2 q=-1 (max mm vs closed form, 19047 steps)  t<1:0.0010  t<2:0.0018  t<5:0.0085  t<10:0.0322  t<20:0.1374  t<40:0.4966
+geant4 empty_L1000_mb1e-3 q=+1 (max mm vs closed form, 178991 steps)  t<1:0.0008  t<2:0.0024  t<5:0.0094  t<10:0.0327  t<20:0.1440  t<40:0.5268
+geant4 empty_L1000_mb1e-3 q=-1 (max mm vs closed form, 178201 steps)  t<1:0.0010  t<2:0.0022  t<5:0.0102  t<10:0.0345  t<20:0.1474  t<40:0.5167
+

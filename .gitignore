@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+sim/QuirkDDG4/build/
+*.root
+*_steps.csv
+*.hepmc3
