@@ -19,37 +19,34 @@ Each stage ends with a check that a new person can repeat. Nothing gets pushed t
 - Open: which string model is closer to Nambu-Goto with a field. One way to settle it is a full Nambu-Goto string simulation for one event. Worth raising with Jackson.
 - Decision for Daniel: production `MaxBoost` (1e-2 vs 1e-3; 1e-3 takes about 10 times more steps).
 
-## Stage 2: quirk-gen to ODD simulation, end to end
+## Stage 2: quirk-gen to ODD simulation - done (2026-10-14)
 
-1. Run quirk-gen for one mass (it needs LCG_109; check that its container route works on Perlmutter).
-2. Simulate it with QuirkDDG4 on ODD using the quick start commands. Check the PDG ID, the charge sign and the event count. Also check the duplicate-event issue from the pilot, where single-thread ddsim wrote each event twice.
-3. Add vertex smearing. quirk-gen puts the vertex at the origin; ColliderML smears it with 12.5 um in xy, 55.5 mm in z and 0.185 ns in t.
-4. Rebuild QuirkDDG4 inside the current ColliderML sim image (sw:pr-8, ODD v6). The current build is for LCG_107 and ODD v4.
+- quirk-gen runs unmodified in the el9 shifter image with LCG_109, from $PSCRATCH (MadGraph fails on CFS). m = 400 GeV, 100 events: 1.6 min on 8 cores.
+- Its HepMC3 3.03.01 files can't be read by the sim image's HepMC3 3.3.0; `colliderml/convert_quirkgen_hepmc.sh` converts them to HepMC2 and renumbers events from 0.
+- QuirkDDG4 builds in the ColliderML sim image (`sim/QuirkDDG4/build_colliderml.sh`).
+- The pilot generator's duplicate-event bug is a ddsim single-thread bug, now fixed (stage 3).
+- Open: tell Jackson about the HepMC version mismatch; writing HepMC2 directly in quirk-gen, or pinning a HepMC3 version, would remove the conversion step.
 
-Check: one command per step in the README, run by someone who didn't write it.
+## Stage 3: ColliderML chain for quirks - pilot done (2026-10-14)
 
-## Stage 3: ColliderML chain for quirks
+- Pilots at m = 400 GeV, Lambda = 1 keV: mu = 0 (20 events) and mu = 200 (5 events), from quirk-gen output to packaged parquet, with every stage run through `run_stage.py`. Simulation took 2.5 min for 20 events at mu = 0 and 13 min for 5 events at mu = 200 (one core).
+- ColliderML changes, each on its own local branch of colliderml-production (`docs/colliderml.md` has the table). Nothing has been pushed; they need Daniel's review before a PR.
+- Guide: `docs/colliderml.md`, written from the commands that ran.
+- Open:
+  1. `run_stage` writes config copies and validation reports under `common.output_base_dir`, which defaults to the public production tree. The pilot configs now set it to the pilot tree. A first run before that fix left a small `quirk_pilot/` folder in the production tree (Daniel to decide).
+  2. The packaging validation needs track files of at least 0.1 MB, which small pilots don't reach. This is harmless, but it reports a failure.
+  3. Have someone new follow `docs/colliderml.md` on a fresh account.
 
-1. Test the `user_physics` setting inside the sim image on one quirk-gen file. Then open it as a PR to colliderml-production, once Daniel gives the OK.
-2. Pileup: use `pythia_generation` with the quirk file as the hard scatter and `merge: true`. The `merge_smear` pileup path has a known bug (an undefined variable), so don't use it.
-3. Fix the user-facing rough edges a newcomer hits first: `ddsim_run.py` exits with code 0 on failure; check that `run_stage.py` interactive mode works for a new user without Daniel's git and Python setup.
-4. Write `docs/colliderml.md`, a step-by-step guide from HepMC3 to parquet using only commands we have run. Include which tables are useful for quirks. The ACTS track fits assume a pion helix, so for quirks the useful tables are `tracker_simhits` and the truth links in `tracker_hits`.
-5. Pilot one grid point at mu = 0 and mu = 200 interactively, and check the particles table (the quirks, their status, and their truth links to hits).
+## Stage 4: grid definition and production plan - partly done
 
-Check: a PhD student follows `docs/colliderml.md` on a fresh account and gets parquet.
+- Grid proposal in `grid/grid.yaml`; `grid/make_configs.py` writes the stage configs for any point from the pilot templates.
+- QuirkDDG4 cost versus tension: `grid/README.md`.
+- Open: agree the grid; decide production `MaxBoost`; storage and batch plan (Daniel).
 
-## Stage 4: grid definition and production plan
+## Stage 5: ML and non-ML starting points - partly done
 
-1. Agree the grid with Makayla and Jackson. Proposal: masses 200-1500 GeV; sqrt(sigma) across the slack (0.1-30 keV), unresolved (30 keV-5 MeV) and tight (MeV-GeV) regimes; mu = 0, 60, 140, 200.
-2. Test QuirkDDG4 above 4 keV. It's untested there, and the step cap cost grows as the string gets shorter.
-3. Measure cost per event per point, then the storage estimate. Daniel decides on batch production.
-
-## Stage 5: ML and non-ML starting points
-
-1. Loader from ColliderML parquet to per-event arrays, with truth edges ordered by hit time. Hit order by radius fails for quirks, which turn back inwards. Makayla's acorn fork has this logic for ATLAS input; port it onto acorn's ColliderML reader.
-2. Writer for Jackson's `quirk-tracking` per-event parquet format: remap the volume IDs and drop the cluster features ColliderML doesn't have.
-3. Non-ML baselines: the coupled string fit (exists), two-helix and 1/r^2 fits (exist), road search in pileup (exists), and the coplanar-hit and ionisation selections (to write).
-4. One worked example notebook from parquet to a baseline result.
+- `ml/quirk_loader.py` (time-ordered truth) and `ml/to_quirk_tracking.py` run on the pilot parquet; `docs/ml_baselines.md` lists the status of each starting point.
+- Open: load the written files with quirk-tracking itself; ACORN quirk config on the loader; adapter from parquet to the string fit (its kernel uses ODD v4 surfaces); coplanar and dE/dx baselines; one worked example notebook.
 
 ## Stage 6: handover
 

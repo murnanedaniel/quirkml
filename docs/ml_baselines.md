@@ -30,7 +30,12 @@ Things to know about the data (checked on the pilot):
 | Coupled two-quirk string fit (mass, tension, momenta) | `fit/q2.py`, `fit/q2_kernel.py` | runs on the earlier pilot's compact hits; not yet on ColliderML parquet |
 | Two-helix and 1/r^2 alternatives | `fit/q2_alt.py` | same |
 | Road search for hit assignment in pileup | `fit/road_kernel.py` | same |
-| Coplanar-hit selection (Knapen et al., arXiv:1708.02243) | - | to write |
+| Coplanar-hit test (after Knapen et al., arXiv:1708.02243) | `ml/baselines/coplanar.py` | runs; truth hit assignment only (see below) |
 | Ionisation (dE/dx) selection (Li et al., arXiv:1911.02223) | - | to write; ColliderML tracker hits have no charge information, but `tracker_simhits.dE` does |
 
 The fit code uses quirk_sim's straight-string model without energy loss. On Geant4 hits it carries a model error of a few mm (field) up to about 25 mm (ionisation, 1 keV, 40 ns); see `docs/validation_status.md`.
+
+### Coplanarity on the pilot
+
+With truth hit assignment and long strips left out, the quirk pair's hits fit a plane through the production vertex to a median RMS of 0.04 mm (16-84%: 0.02-0.07 mm; 20 events, mu = 0). The two highest-pT ordinary tracks of the same events fit to 0.44 mm (0.21-1.36 mm). Two straight tracks from one vertex are exactly coplanar, so this separation comes only from the ordinary tracks curving in the field; soft tracks curve more. This is a check that the method runs, not a selection study: it needs hit assignment without truth, pileup, and lower-tension points.
+
