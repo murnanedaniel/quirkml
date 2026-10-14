@@ -13,19 +13,23 @@ We don't generate events here. [quirk-gen](https://github.com/burzynski-lab/quir
 This repo takes that HepMC3 and does:
 
 1. string transport in Geant4 on ODD (`sim/`, QuirkDDG4);
-2. pileup merging, digitisation and parquet output through the ColliderML production chain (`colliderml/`, planned);
-3. reconstruction baselines (`fit/` today; `ml/` planned).
+2. pileup merging, digitisation and parquet output through the ColliderML production chain (`colliderml/`, `docs/colliderml.md`);
+3. reconstruction starting points, ML and non-ML (`ml/`, `fit/`, `docs/ml_baselines.md`).
 
 ## Layout
 
 | Path | Contents |
 |---|---|
-| `sim/QuirkDDG4/` | DDG4 plugin: Athena's quirk string transport ported to DD4hep/ddsim (Geant4 11.3) |
-| `sim/run_quirk_ddsim.py`, `sim/run_in_shifter.sh` | ddsim driver for the plugin, and a wrapper that runs it in the el9 container on Perlmutter |
-| `quirk_sim/` | fast quirk-pair model in Python/numba: straight string, both ends at the same lab time, RK4 in lab time |
+| `sim/QuirkDDG4/` | DDG4 plugin: Athena's quirk string transport ported to DD4hep/ddsim (Geant4 11.3). `build.sh` builds for LCG_107, `build_colliderml.sh` for the ColliderML sim image |
+| `sim/run_quirk_ddsim.py`, `sim/run_in_shifter.sh` | stand-alone ddsim driver for the plugin, and a wrapper for the el9 container on Perlmutter |
+| `colliderml/` | quirk-gen file converter and worked stage configs for the ColliderML chain (`pilot_m400_L1000_mu0`, `pilot_m400_L1000_mu200`) |
+| `grid/` | grid proposal and a generator for per-point stage configs |
+| `ml/` | parquet loader with time-ordered quirk truth, writer for quirk-tracking, coplanarity and ionisation baselines |
+| `quirk_sim/` | fast quirk-pair model in Python/numba: straight string, both ends at the same lab time, RK4 in lab time, no energy loss |
+| `fit/` | coupled two-quirk fit of mass, tension and momenta to hits, with two-helix and 1/r^2 alternatives, and a road search kernel for pileup |
 | `gen/` | small Pythia8 Hidden Valley generator for quick tests (quirk-gen is the production generator) |
-| `fit/` | coupled two-quirk fit of mass, tension and momenta to hits, with two-helix and 1/r^2 alternatives (`q2*.py`), and a road search kernel for hit assignment in pileup |
-| `validation/` | Geant4 vs quirk_sim vs exact-motion comparisons, scripts and small CSV summaries |
+| `validation/` | Geant4 vs quirk_sim vs exact-motion comparisons |
+| `docs/` | `colliderml.md` (the chain, step by step), `validation_status.md`, `ml_baselines.md` |
 
 ## Quick start (Perlmutter)
 
@@ -42,7 +46,7 @@ bash sim/run_in_shifter.sh --compact $ODD_XML \
 
 `--string-force` is the tension Lambda^2/hbar c in MeV/mm (Lambda = 1 keV gives 5067.73); quirk-gen writes the same number as `stringforce_mev_per_mm`. quirk-gen's quirk is PDG +10000100 with charge +1, and the plugin gives +PDG the charge `--charge`. The plugin is single-threaded, because the two quirks share one string object.
 
-The quick start above has not yet been run on a quirk-gen file. The commands are the ones used for our pilot, with quirk-gen's PDG ID.
+These commands are for a quick stand-alone run. They work on quirk-gen files once converted with `colliderml/convert_quirkgen_hepmc.sh`; the converted pilot file ran through the ColliderML chain. For samples, use the ColliderML chain (`docs/colliderml.md`).
 
 ## What has been checked
 
