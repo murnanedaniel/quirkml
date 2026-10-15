@@ -9,7 +9,9 @@
 #         <work_dir>/cache -> /cache, this repo -> /quirkml.
 # Runtime: $QUIRKML_RUNTIME, else the first found of podman-hpc (NERSC), docker, podman, apptainer.
 
-QUIRKML_IMAGE=${QUIRKML_IMAGE:-ghcr.io/opendatadetector/sw:pr-8}
+# The default image has Pythia8 and HepMC3 python bindings (OpenDataDetector/sw branch
+# feat/python-pythia8-hepmc3), so quirk-gen also runs in it. sw:pr-8 works for the stages alone.
+QUIRKML_IMAGE=${QUIRKML_IMAGE:-ghcr.io/opendatadetector/sw:feat-python-pythia8-hepmc3}
 QML_WORK=$(cd "${1:?usage: source container.sh <work_dir>}" && pwd)
 QML_REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 QML_APPTAINER_FALLBACK=/cvmfs/oasis.opensciencegrid.org/mis/apptainer/current/bin/apptainer

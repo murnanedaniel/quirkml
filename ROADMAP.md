@@ -65,16 +65,17 @@ A new member of the m4958 project goes from nothing to tracker-only quirk parque
 
 Not tested: a different user account (their podman image pull, group read access to the shared Geant4 data). That needs Jackson's student or another m4958 member. People outside m4958 would need the containers' mounts generalised.
 
-## Stage 8: anyone with a container runtime can make a sample - done except Docker and the one-image quirk-gen (2026-10-14)
+## Stage 8: anyone with a container runtime can make a sample - done except Docker (2026-10-14)
 
-Goal: the tutorial works for people outside m4958 and outside NERSC (Jackson's group), on any Linux machine with Docker, Podman or Apptainer, plus cvmfs for quirk-gen. Stage 7 drove the stages through `run_stage.py`, the NERSC production driver, which assumes m4958 paths, podman-hpc and a Slurm account.
+Goal: the tutorial works for people outside m4958 and outside NERSC (Jackson's group), on any Linux machine with Docker, Podman or Apptainer. Stage 7 drove the stages through `run_stage.py`, the NERSC production driver, which assumes m4958 paths, podman-hpc and a Slurm account.
 
 1. Use the ColliderML container route instead (the one `colliderml.simulate()` uses): each stage script runs directly in the ODD image with `--config` and `--output`, with four host folders mounted (`/work`, `/workspace`, `/cache`, `/quirkml`). A small runner picks podman-hpc, Docker, Podman or Apptainer.
 2. Stage configs written with container paths; no `run_stage.py`, no Slurm account, no python env on the host for running. The packaging stage (a production postprocessing step) is dropped; the loader reads the per-run parquet.
 3. Geant4 data downloaded into the user's own cache on first use, not read from m4958.
-4. quirk-gen: an LCG_109 view from cvmfs, entered directly on an el9 host, through shifter on NERSC, or through Apptainer with an el9 image elsewhere.
+4. quirk-gen: inside the image (route 1, default), or an LCG_109 view from cvmfs (route 2), entered directly on an el9 host, through shifter on NERSC, or through Apptainer with an el9 image elsewhere.
 5. Tested from fresh GitHub clones in `$PSCRATCH` (outside m4958): podman-hpc for mu = 0 (20 events, 3.7 min) and mu = 200 (5 events, 21 min); Apptainer 1.5 (from cvmfs) for mu = 0, including quirk-gen through Apptainer and the LCG view. Both runtimes gave 2 quirks and about 27 quirk hits per event. Two Apptainer problems found and fixed: the Geant4 data download went into the in-memory overlay, and `uv` in the image wrote to the user's home (which went over quota).
-6. Not tested: Docker (not available here; same command form as the ColliderML library). quirk-gen inside the ODD image waits for the OpenDataDetector/sw branch `feat/python-pythia8-hepmc3` (Pythia8 and HepMC3 python bindings), whose image build was started on 2026-10-14 (GitHub Actions, manual run on the branch, no PR).
+6. One image for everything: OpenDataDetector/sw branch `feat/python-pythia8-hepmc3` adds `+python` to pythia8 and hepmc3 (GitHub Actions, manual run on the branch, no PR), image `ghcr.io/opendatadetector/sw:feat-python-pythia8-hepmc3`, now the default. MadGraph was already in the image. The python modules are not on the image's `PYTHONPATH`; `run_quirkgen.sh` adds them. Tested with podman-hpc from a fresh directory, mu = 0, 20 events: quirk-gen 44 s, all stages 2.5 min, 2 quirks and 30 quirk hits per event (MadGraph 3.5.9 and the image's Pythia give different events from the LCG_109 ones at the same seed).
+7. Not tested: Docker (not available here; same command form as the ColliderML library). The image tag follows a feature branch; it changes if the branch is rebuilt.
 
 ## Open questions for Daniel / Jackson / Makayla
 

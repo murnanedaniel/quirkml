@@ -3,14 +3,16 @@
 #   bash gen/run_quirkgen.sh <config_dir>          (config_dir from colliderml/make_sample.py)
 # Runs quirk-gen (burzynski-lab/quirk-gen at the commit below, unmodified) in <work_dir>/quirkgen/.
 # Environment, first that works:
-#   1. the ODD image itself, if it has Pythia8's python bindings (sw images built with +python);
+#   1. the ODD image itself, if it has Pythia8's and HepMC3's python bindings (sw images built with
+#      +python, e.g. ghcr.io/opendatadetector/sw:feat-python-pythia8-hepmc3); MadGraph is already in it;
 #   2. quirk-gen's LCG_109 view from cvmfs: directly on an el9 host, or through shifter (NERSC) or
 #      Apptainer with an el9 image. Set QUIRKGEN_ENV=image|lcg to choose the route, and
 #      QUIRKGEN_LCG_VIA=direct|shifter|apptainer to choose how the LCG view is entered.
 # Writes to the run directory:
 #   events.hepmc, events.json    quirk-gen output
-#   events_hepmc2.hepmc          the same events as HepMC2, numbered from 0. With the LCG view this is
-#                                needed: the ODD image's HepMC3 3.3.0 can't read LCG_109's 3.03 files.
+#   events_hepmc2.hepmc          the same events as HepMC2, numbered from 0 (the pileup merge needs 0).
+#                                With the LCG view it is also needed because the ODD image's HepMC3
+#                                3.3.0 can't read LCG_109's 3.03 files.
 set -eo pipefail   # not -u: the LCG setup script uses unset variables
 QUIRKGEN_REPO=https://github.com/burzynski-lab/quirk-gen.git
 QUIRKGEN_COMMIT=9980db3
@@ -38,20 +40,22 @@ if [ ! -d "$GEN/quirk-gen/.git" ]; then
   git clone -q "$QUIRKGEN_REPO" "$GEN/quirk-gen" && git -C "$GEN/quirk-gen" checkout -q "$QUIRKGEN_COMMIT"
 fi
 
-# Route 1: the ODD image.
+# Route 1: the ODD image. Its spack tree has MadGraph; when pythia8 and hepmc3 are built with +python,
+# their modules are in the spack tree but not on the image's PYTHONPATH, so add them.
 source "$QUIRKML/colliderml/container.sh" "$WORK_DIR"
-if [ "${QUIRKGEN_ENV:-}" != "lcg" ] && qml_run "python3 -c 'import pythia8, pyHepMC3'" >/dev/null 2>&1; then
+SPACK_PY='S=/spack/opt/spack/linux-x86_64; export PYTHONPATH=$(ls -d $S/pythia8-*/lib $S/hepmc3-*/lib/python3*/site-packages 2>/dev/null | tr "\n" :)$PYTHONPATH;'
+if [ "${QUIRKGEN_ENV:-}" != "lcg" ] && qml_run "$SPACK_PY python3 -c 'import pythia8, pyHepMC3'" >/dev/null 2>&1; then
   echo "quirk-gen in $QUIRKML_IMAGE"
-  qml_run "export QG_ROOT=/work/quirkgen/quirk-gen PATH=/work/quirkgen/quirk-gen/scripts:\$PATH &&
+  qml_run "$SPACK_PY export QG_ROOT=/work/quirkgen/quirk-gen PATH=/work/quirkgen/quirk-gen/scripts:\$PATH &&
            cd \$QG_ROOT && scripts/run_chain.sh $ARGS --out /work/quirkgen/$DATASET &&
            cp /work/quirkgen/$DATASET/events.hepmc /work/quirkgen/$DATASET/events.json /work/runs/$DATASET/ &&
            python3 /quirkml/colliderml/convert_to_hepmc2.py /work/runs/$DATASET/events.hepmc /work/runs/$DATASET/events_hepmc2.hepmc"
   echo "quirk events ready in $WORK_DIR/runs/$DATASET"; exit 0
 fi
-[ "${QUIRKGEN_ENV:-}" = "image" ] && { echo "the image has no Pythia8 python bindings" >&2; exit 1; }
+[ "${QUIRKGEN_ENV:-}" = "image" ] && { echo "$QUIRKML_IMAGE has no Pythia8/HepMC3 python bindings" >&2; exit 1; }
 
 # Route 2: LCG_109 from cvmfs.
-[ -d "$LCG_VIEW" ] || { echo "no $LCG_VIEW: quirk-gen needs cvmfs (sft.cern.ch), or an image with Pythia8 python" >&2; exit 1; }
+[ -d "$LCG_VIEW" ] || { echo "no $LCG_VIEW: quirk-gen needs cvmfs (sft.cern.ch), or an image with Pythia8 python (the default QUIRKML_IMAGE has it)" >&2; exit 1; }
 echo "quirk-gen in $LCG_VIEW"
 VIA=${QUIRKGEN_LCG_VIA:-}
 if [ -z "$VIA" ]; then

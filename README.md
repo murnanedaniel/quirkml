@@ -33,7 +33,7 @@ This repo takes that HepMC3 and does:
 
 ## Quick start
 
-On any Linux machine with Docker, Podman, Apptainer or podman-hpc, and cvmfs for quirk-gen (`docs/tutorial.md` has the details):
+On any Linux machine with Docker, Podman, Apptainer or podman-hpc (`docs/tutorial.md` has the details). Everything, quirk-gen included, runs in one image:
 
 ```bash
 git clone https://github.com/murnanedaniel/quirkml.git
@@ -65,7 +65,7 @@ These commands are for a quick stand-alone run and have not been tried on a quir
 
 - A 16,000-event pilot (masses 400 and 800 GeV, sqrt(sigma) = 0.5, 1, 2, 4 keV) ran through QuirkDDG4 on full ODD v4. It used `gen/`, not quirk-gen.
 - With no field and no energy loss, QuirkDDG4 follows the exact closed-form motion to 0.016 mm over 40 ns (`docs/validation_status.md`).
-- QuirkDDG4 builds inside the ODD image `sw:pr-8` (`colliderml/setup.sh`), and the tutorial route ran from fresh clones with podman-hpc on NERSC (`docs/tutorial.md`).
+- QuirkDDG4 builds inside the ODD image (`colliderml/setup.sh`; tested with `sw:pr-8` and `sw:feat-python-pythia8-hepmc3`), and the tutorial route ran from fresh clones with podman-hpc on NERSC (`docs/tutorial.md`).
 - The coupled fit recovers the tension to a few percent on hits from its own model.
 
 ## Things to know before using the samples

@@ -2,12 +2,11 @@
 
 This takes you from nothing to ColliderML-format parquet for one quirk sample: quirk-gen events, beam spot and optional pileup, Geant4 with the quirk string (QuirkDDG4) in the ODD tracker, and ACTS digitisation. The calorimeters are not simulated.
 
-Everything except quirk-gen runs inside the OpenDataDetector software image, the same way the ColliderML library's `colliderml.simulate()` runs the pipeline. `docs/colliderml.md` explains what each step does.
+Everything runs inside the OpenDataDetector software image, including quirk-gen (MadGraph and Pythia8), the same way the ColliderML library's `colliderml.simulate()` runs the pipeline. `docs/colliderml.md` explains what each step does.
 
 ## What you need
 
 - A Linux machine (x86_64) with one of: Docker, Podman, Apptainer (or Singularity), or podman-hpc on NERSC. The scripts take the first one they find; set `QUIRKML_RUNTIME` to choose (for example `QUIRKML_RUNTIME=apptainer`).
-- cvmfs with `sft.cern.ch`, for quirk-gen (MadGraph + Pythia8 from the LCG_109 view), unless your image has Pythia8's python bindings (see `docs/colliderml.md`). lxplus and most HEP clusters have it. If the host isn't el9, the scripts enter an el9 image through shifter (NERSC) or Apptainer.
 - `git` and `python3` (standard library only), and about 15 GB of disk for the work directory.
 - For reading the output: python with `numpy`, `pandas` and `pyarrow`.
 
@@ -25,7 +24,7 @@ bash quirkml/colliderml/setup.sh quirks
 `setup.sh` puts into the work directory (`quirks/` here):
 
 - `colliderml-production/`: the ColliderML stage scripts, branch `quirk/pilot-integration` of [colliderml-production](https://github.com/OpenDataDetector/colliderml-production) at a fixed commit;
-- the image `ghcr.io/opendatadetector/sw:pr-8` (about 6 GB; with Apptainer as `sw-pr-8.sif`, otherwise in the runtime's own store);
+- the image `ghcr.io/opendatadetector/sw:feat-python-pythia8-hepmc3` (about 6 GB; with Apptainer as `sw-feat-python-pythia8-hepmc3.sif`, otherwise in the runtime's own store). It is a build of the ODD software image with Pythia8's and HepMC3's python bindings added, which quirk-gen needs;
 - `plugin/libQuirkDDG4.so`, the quirk plugin built inside that image;
 - `cache/`: Geant4 data files (2-4 GB, downloaded the first time the image environment is set up).
 
@@ -51,7 +50,7 @@ This writes the stage configs to `quirks/configs/<dataset>/` (the dataset is nam
 bash quirkml/gen/run_quirkgen.sh quirks/configs/m400_L1000_mu0
 ```
 
-This runs [quirk-gen](https://github.com/burzynski-lab/quirk-gen) at a fixed commit in `quirks/quirkgen/` and copies `events.hepmc` and `events.json` into the run directory. It also writes `events_hepmc2.hepmc`, the same events as HepMC2: the image's HepMC3 (3.3) can't read quirk-gen's HepMC3 3.03 files and would see empty events without an error. 20 events took 2-3 minutes.
+This runs [quirk-gen](https://github.com/burzynski-lab/quirk-gen) at a fixed commit inside the image, in `quirks/quirkgen/`, and copies `events.hepmc` and `events.json` into the run directory. It also writes `events_hepmc2.hepmc`, the same events numbered from 0, which the next stage reads. 20 events took under a minute (MadGraph compiles the process the first time).
 
 quirk-gen's `--lambda` is only recorded in `events.json`. The string acts only in the simulation, so the events of one mass serve every `lambda_ev`.
 
@@ -93,10 +92,11 @@ print(len(quirks), "quirks,", ev["hits"].is_quirk.sum(), "quirk hits")
 - **No container runtime found.** Install one, or set `QUIRKML_RUNTIME` to its full path.
 - **Apptainer fills your home directory.** The scripts put Apptainer's cache in `<work_dir>/cache/apptainer`; if you run Apptainer by hand, set `APPTAINER_CACHEDIR` yourself.
 - **Changing the mass without rerunning step 3.** `run_sample.sh` compares `events.json` with the settings file and stops.
+- **Using another image.** Set `QUIRKML_IMAGE` before `setup.sh` (it rebuilds the plugin for that image). If the image has no Pythia8 python bindings, for example `ghcr.io/opendatadetector/sw:pr-8`, `run_quirkgen.sh` falls back to the LCG_109 view from cvmfs (`docs/colliderml.md`).
 - **Many events, or a high string tension.** Simulation is single-threaded and its cost grows with the tension: about 1-3 minutes per pair-only event at Lambda = 10-30 keV, and at 100 keV one event didn't finish in 20 minutes (`grid/README.md`). Start with tens of events.
 
 ## Site notes
 
-- **NERSC (Perlmutter).** podman-hpc is found first. Work on `$PSCRATCH` (MadGraph fails on CFS, and home is small); it is purged after 8 weeks without access, so copy the parquet you want to keep. quirk-gen enters the LCG view through shifter. Run step 4 in a compute allocation, e.g. `salloc -A <account> -C cpu -q shared_interactive -t 60 -c 8 srun -n 1 -c 8 bash quirkml/colliderml/run_sample.sh ...`.
-- **lxplus and other el9 hosts with cvmfs.** quirk-gen uses the LCG view directly. For the image, use Apptainer (`QUIRKML_RUNTIME=apptainer`); keep the work directory off AFS home, which is too small.
+- **NERSC (Perlmutter).** podman-hpc is found first. Work on `$PSCRATCH` (MadGraph fails on CFS, and home is small); it is purged after 8 weeks without access, so copy the parquet you want to keep. Run step 4 in a compute allocation, e.g. `salloc -A <account> -C cpu -q shared_interactive -t 60 -c 8 srun -n 1 -c 8 bash quirkml/colliderml/run_sample.sh ...`.
+- **lxplus and other hosts with Apptainer.** Use Apptainer (`QUIRKML_RUNTIME=apptainer`); keep the work directory off AFS home, which is too small.
 
