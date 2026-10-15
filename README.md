@@ -4,7 +4,20 @@ Full simulation of quirk pairs in the OpenDataDetector (ODD), and the route from
 
 Quirks are heavy charged particles held together by a long, unbreakable string of a new confining force. When sqrt(sigma) is below about 30 keV, the string is macroscopic and the pair leaves tracks that are neither helices nor straight lines. Standard helix-based track finding isn't designed for them.
 
-**Status (2026-10-14): work in progress.** To make a sample, follow `docs/tutorial.md`. `ROADMAP.md` lists what works today and what's planned before handover.
+## Making a sample: start with the tutorial
+
+**[`docs/tutorial.md`](docs/tutorial.md)** takes you from a fresh clone to a quirk sample in ColliderML parquet format, step by step, on any Linux machine with Docker, Podman, Apptainer or podman-hpc. Everything, quirk-gen included, runs in one image. In short:
+
+```bash
+git clone https://github.com/murnanedaniel/quirkml.git
+bash quirkml/colliderml/setup.sh quirks
+cp quirkml/colliderml/sample.yaml my_sample.yaml        # set the physics point
+python3 quirkml/colliderml/make_sample.py my_sample.yaml
+bash quirkml/gen/run_quirkgen.sh quirks/configs/m400_L1000_mu0
+bash quirkml/colliderml/run_sample.sh quirks/configs/m400_L1000_mu0
+```
+
+**Status (2026-10-15): work in progress.** `ROADMAP.md` lists what works today and what's planned before handover.
 
 ## How this fits with quirk-gen
 
@@ -30,19 +43,6 @@ This repo takes that HepMC3 and does:
 | `gen/` | `run_quirkgen.sh` (quirk-gen for one sample), and a small Pythia8 Hidden Valley generator for quick tests |
 | `validation/` | Geant4 vs quirk_sim vs exact-motion comparisons |
 | `docs/` | `tutorial.md` (make a sample), `colliderml.md` (what each step does), `validation_status.md`, `ml_baselines.md` |
-
-## Quick start
-
-On any Linux machine with Docker, Podman, Apptainer or podman-hpc (`docs/tutorial.md` has the details). Everything, quirk-gen included, runs in one image:
-
-```bash
-git clone https://github.com/murnanedaniel/quirkml.git
-bash quirkml/colliderml/setup.sh quirks
-cp quirkml/colliderml/sample.yaml my_sample.yaml        # set the physics point
-python3 quirkml/colliderml/make_sample.py my_sample.yaml
-bash quirkml/gen/run_quirkgen.sh quirks/configs/m400_L1000_mu0
-bash quirkml/colliderml/run_sample.sh quirks/configs/m400_L1000_mu0
-```
 
 ## Stand-alone ddsim run (Perlmutter, m4958 only)
 
