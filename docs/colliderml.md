@@ -53,7 +53,7 @@ Plugin values in `2_simulation.yaml`:
 
 `gen/run_quirkgen.sh <config_dir>` clones `burzynski-lab/quirk-gen` at `9980db3` into `<work_dir>/quirkgen/` and runs `scripts/run_chain.sh` with the mass, events, Lambda and seed. It copies `events.hepmc` and `events.json` to the run directory and writes `events_hepmc2.hepmc` there. `QUIRKGEN_ENV=image` or `lcg` forces a route.
 
-**Route 1: inside the ODD image (default).** The image has MadGraph 3.5.9 in its spack tree, and the default image also has the Pythia8 (8.313) and HepMC3 (3.3.0) python modules. These are not on the image's `PYTHONPATH`, so the script adds `/spack/opt/spack/linux-x86_64/pythia8-*/lib` and `hepmc3-*/lib/python3*/site-packages`. Used when `import pythia8, pyHepMC3` then works. Tested with podman-hpc: 20 events in 44 s. Without the bindings (e.g. `sw:pr-8`), the script uses route 2.
+**Route 1: inside the ODD image (default).** The image has MadGraph 3.5.9 in its spack tree, and the default image also has the Pythia8 (8.313) and HepMC3 (3.3.0) python modules. These are not on the image's `PYTHONPATH`, so the script adds `/spack/opt/spack/linux-x86_64/pythia8-*/lib` and `hepmc3-*/lib/python3*/site-packages`. Used when `import pythia8, pyHepMC3` then works. Tested with podman-hpc and Apptainer: 20 events in about 45 s. Without the bindings (e.g. `sw:pr-8`), the script uses route 2.
 
 **Route 2: LCG_109 from cvmfs, for images without the bindings** (`/cvmfs/sft.cern.ch/lcg/views/LCG_109/x86_64-el9-gcc13-opt`, or `$LCG_VIEW`). On an el9 host the script runs the view directly. Otherwise it uses shifter with `registry.cern.ch/atlasadc/atlas-grid-almalinux9` (NERSC) or Apptainer with that image. It stops if none of these is available.
 
