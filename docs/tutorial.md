@@ -28,7 +28,7 @@ bash quirkml/colliderml/setup.sh quirks
 - `plugin/libQuirkDDG4.so`, the quirk plugin built inside that image;
 - `cache/`: Geant4 data files (2-4 GB, downloaded the first time the image environment is set up).
 
-It took 1-4 minutes in our tests, plus the image and Geant4 data downloads. Rerunning it keeps what is already there.
+It took about 3 minutes in our tests once the image was downloaded; with Apptainer, converting the image to `.sif` adds about 15 minutes the first time. Rerunning it keeps what is already there. On a shared cluster run `setup.sh` on a compute node: pulling and unpacking the 6 GB image on a login node can hit its per-user limits (in our tests it ended the login session).
 
 ## 2. Describe the sample (one file)
 
@@ -70,7 +70,7 @@ Run it where you have 8 cores for up to an hour: a workstation, or an interactiv
 | 2 | Geant4 on the ODD v6 tracker with QuirkDDG4 (one core: the two quirks share one string object) |
 | 3 | ACTS geometric digitisation, written as parquet |
 
-Times on one node of a CPU cluster (podman-hpc), m = 400 GeV, Lambda = 1 keV: mu = 0 with 20 events took 4-5 minutes in all (simulation 3-4 minutes); mu = 200 with 5 events took 21 minutes. Each event had two quirks with about 27 hits from them; at mu = 200 an event has about 200,000 tracker hits.
+Times on one node of a CPU cluster, m = 400 GeV, Lambda = 1 keV: mu = 0 with 20 events took 2.5 minutes for the three stages (simulation 2 minutes), with podman-hpc and with Apptainer; each event had two quirks with about 30 hits from them. mu = 200 with 5 events took 21 minutes (with the earlier image `sw:pr-8`); an event then has about 200,000 tracker hits.
 
 ## 5. Read it
 
@@ -97,6 +97,6 @@ print(len(quirks), "quirks,", ev["hits"].is_quirk.sum(), "quirk hits")
 
 ## Site notes
 
-- **NERSC (Perlmutter).** podman-hpc is found first. Work on `$PSCRATCH` (MadGraph fails on CFS, and home is small); it is purged after 8 weeks without access, so copy the parquet you want to keep. Run step 4 in a compute allocation, e.g. `salloc -A <account> -C cpu -q shared_interactive -t 60 -c 8 srun -n 1 -c 8 bash quirkml/colliderml/run_sample.sh ...`.
+- **NERSC (Perlmutter).** podman-hpc is found first. Work on `$PSCRATCH` (MadGraph fails on CFS, and home is small); it is purged after 8 weeks without access, so copy the parquet you want to keep. Run steps 1, 3 and 4 in a compute allocation, not on a login node (see step 1), e.g. `salloc -A <account> -C cpu -q shared_interactive -t 60 -c 8`, then `srun -n 1 -c 8 bash quirkml/colliderml/setup.sh quirks` and the same `srun` prefix for the other two.
 - **lxplus and other hosts with Apptainer.** Use Apptainer (`QUIRKML_RUNTIME=apptainer`); keep the work directory off AFS home, which is too small.
 
