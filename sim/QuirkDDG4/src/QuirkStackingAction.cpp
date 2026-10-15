@@ -7,6 +7,8 @@
 #include "Quirk.h"
 
 #include "G4Track.hh"
+#include "G4Threading.hh"
+#include "G4ios.hh"
 
 QuirkStackingAction::QuirkStackingAction(G4UserStackingAction* defaultStackingAction):
     m_firstTrack(true),
@@ -27,6 +29,11 @@ G4ClassificationOfNewTrack QuirkStackingAction::ClassifyNewTrack(const G4Track* 
     if (quirkDef == 0 || (defaultClassification != fUrgent && defaultClassification != fWaiting)) {
         return defaultClassification;
     } else if (m_firstTrack) {
+        static G4ThreadLocal G4bool announced = false;   // once per thread: shows the action is active there
+        if (!announced) {
+            announced = true;
+            G4cout << "QuirkStackingAction: first quirk classified on thread " << G4Threading::G4GetThreadId() << G4endl;
+        }
         m_firstTrack = false;
         return fWaiting;
     } else {
@@ -47,4 +54,5 @@ void QuirkStackingAction::PrepareNewEvent() {
         m_defaultStackingAction->PrepareNewEvent();
     }
     m_firstTrack = true;
+    Quirk::ClearStrings();
 }

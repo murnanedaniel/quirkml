@@ -2,8 +2,9 @@
 """Self-contained ddsim driver that runs the QuirkDDG4 plugin.
 
 Injects the QuirkPhysics constructor via SIM.physics.setupUserPhysics, runs
-single-threaded (the quirk-antiquirk string state is shared and not MT-safe),
-and writes edm4hep output.  Works on any dd4hep compact geometry (the
+one thread (so that the QUIRK_* diagnostic files below are written by one
+thread; the plugin itself runs multi-threaded in the ColliderML route), and
+writes edm4hep output.  Works on any dd4hep compact geometry (the
 simplified barrel in ../geometry, or the full ODD).
 
 Build & path setup first:  source ../build.sh  (or env.sh) so the plugin's

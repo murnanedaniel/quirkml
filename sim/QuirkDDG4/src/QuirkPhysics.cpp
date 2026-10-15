@@ -27,6 +27,7 @@
 #include <G4ProcessManager.hh>
 #include <G4RunManager.hh>
 #include <G4EventManager.hh>
+#include <G4Threading.hh>
 #include <G4hMultipleScattering.hh>
 #include <G4hIonisation.hh>
 #include <G4hBremsstrahlung.hh>
@@ -57,13 +58,13 @@ namespace dd4hep {
       }
       virtual ~QuirkPhysics() = default;
 
-      /// Create the quirk+ / quirk- particles with their cross-linked strings.
+      /// Create the quirk+ / quirk- particles (their strings are made per thread, see Quirk.h).
       virtual void constructParticle(Constructor& /* ctor */) override {
         info("+++ Quirk: m=%.1f MeV  q=%.1f e  pdg=%d  stringForce=%.3f MeV/mm",
              m_mass, m_charge, m_pdgid, m_stringForce);
 
-        // quirk+ must be created first; the quirk- ctor cross-links the two
-        // InfracolorForce objects (see Quirk::Quirk).
+        // quirk+ must be created first; the quirk- ctor links the two as
+        // partners (see Quirk::Quirk).
         Quirk* q1 = new Quirk(
             "quirk+", m_mass * CLHEP::MeV, /*width*/ 0.0, +m_charge * CLHEP::eplus,
             /*2*spin*/ 1, /*parity*/ 0, /*C*/ 0, /*2*I*/ 0, /*2*I3*/ 0, /*G*/ 0,
@@ -75,12 +76,13 @@ namespace dd4hep {
             /*type*/ "lepton", /*lepton*/ -1, /*baryon*/ 0, -m_pdgid,
             /*stable*/ true, /*lifetime*/ -1.0, /*decay*/ nullptr, /*shortlived*/ false);
 
-        InfracolorForce& s = q1->GetStringIn();
-        s.SetStringForce(m_stringForce * CLHEP::MeV / CLHEP::mm);
-        s.SetFirstStringLength(m_firstStringLen * CLHEP::mm);
-        s.SetMaxBoost(m_maxBoost);
-        s.SetMaxMergeT(m_maxMergeT * CLHEP::mm);
-        s.SetMaxMergeMag(m_maxMergeMag * CLHEP::mm);
+        Quirk::StringParams s;
+        s.stringForce = m_stringForce * CLHEP::MeV / CLHEP::mm;
+        s.firstStringLength = m_firstStringLen * CLHEP::mm;
+        s.maxBoost = m_maxBoost;
+        s.maxMergeT = m_maxMergeT * CLHEP::mm;
+        s.maxMergeMag = m_maxMergeMag * CLHEP::mm;
+        q1->SetStringParams(s);
       }
 
       /// Replace transportation for the quirks and wire up the stacking.
@@ -123,14 +125,20 @@ namespace dd4hep {
 
         // The quirk and antiquirk must co-evolve their shared string: an extra
         // waiting stack + QuirkStackingAction force the partner to wait while
-        // each quirk lays out string, mirroring QuirkPhysicsTool.
+        // each quirk lays out string, mirroring QuirkPhysicsTool. Stacking is
+        // per event, so in a multithreaded run it goes on every worker thread
+        // (constructProcess runs on each of them); the master has no events.
+        if (G4Threading::IsMultithreadedApplication() && G4Threading::IsMasterThread()) {
+          info("+++ Quirk: master thread, QuirkStackingAction goes on the workers");
+          return;
+        }
         G4RunManager* rm = G4RunManager::GetRunManager();
         rm->SetNumberOfAdditionalWaitingStacks(1);
         G4UserStackingAction* dflt =
             G4EventManager::GetEventManager()->GetUserStackingAction();
         rm->SetUserAction(new QuirkStackingAction(dflt));
-        info("+++ Quirk: installed QuirkStackingAction (+1 waiting stack); "
-             "run ddsim single-threaded (threads=1).");
+        info("+++ Quirk: installed QuirkStackingAction (+1 waiting stack) on thread %d%s",
+             G4Threading::G4GetThreadId(), dflt ? ", wrapping the existing stacking action" : "");
       }
 
     private:

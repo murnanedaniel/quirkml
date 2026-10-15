@@ -25,6 +25,7 @@ namespace {
                           qwatch_dbg = (e && e[0] == '1') ? 1 : 0; }
     return qwatch_dbg == 1;
   }
+  // QUIRK_DUMP_FILE diagnostic: single-threaded runs only (one file shared by all threads).
   std::ofstream* qdump = nullptr;
   int qdump_init = 0;
   std::ofstream* dumpStream() {

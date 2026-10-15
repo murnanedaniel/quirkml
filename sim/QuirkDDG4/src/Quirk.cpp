@@ -2,6 +2,9 @@
   Copyright (C) 2002-2024 CERN for the benefit of the ATLAS collaboration
 */
 
+#include <map>
+#include <memory>
+
 #include "G4ParticleTable.hh"
 #include "InfracolorForce.h"
 #include "Quirk.h"
@@ -26,7 +29,9 @@ Quirk::Quirk(
         lepton,baryon,encoding,stable,lifetime,decaytable,
         shortlived,subType,anti_encoding,magneticMoment
     ),
-    m_stringIn(new InfracolorForce())
+    m_partner(0),
+    m_params(),
+    m_hasParams(false)
 {
     G4ParticleTable* particleTable = GetParticleTable();
     G4ParticleDefinition* partner = particleTable->FindParticle(GetAntiPDGEncoding());
@@ -36,11 +41,53 @@ Quirk::Quirk(
             G4Exception("Quirk::Quirk", "NonQuirkAntiparticle", FatalErrorInArgument, "Antiparticle of quirk must be a quirk");
             std::abort();
         }
-        m_stringIn->SetReactionForce(qpartner->m_stringIn);
-        qpartner->m_stringIn->SetReactionForce(m_stringIn);
+        m_partner = qpartner;
+        qpartner->m_partner = this;
     }
 }
 
-Quirk::~Quirk() {
-    delete m_stringIn;
+Quirk::~Quirk() {}
+
+void Quirk::SetStringParams(const StringParams& params) {
+    m_params = params;
+    m_hasParams = true;
+    if (m_partner != 0) {
+        m_partner->m_params = params;
+        m_partner->m_hasParams = true;
+    }
+}
+
+namespace {
+    // One linked pair of strings per thread and quirk pair, created on first use in that thread.
+    typedef std::map<const Quirk*, std::unique_ptr<InfracolorForce> > StringMap;
+    G4ThreadLocal StringMap* strings = 0;
+}
+
+void Quirk::ClearStrings() {
+    if (strings == 0) return;
+    for (StringMap::iterator it = strings->begin(); it != strings->end(); ++it) it->second->Clear();
+}
+
+InfracolorForce& Quirk::GetStringIn() const {
+    if (strings == 0) strings = new StringMap();
+    StringMap::iterator it = strings->find(this);
+    if (it != strings->end()) return *it->second;
+    if (m_partner == 0) {
+        G4Exception("Quirk::GetStringIn", "NoAntiQuirk", FatalErrorInArgument, "Quirk has no antiquirk");
+        std::abort();
+    }
+    InfracolorForce* mine = new InfracolorForce();
+    InfracolorForce* theirs = new InfracolorForce();
+    mine->SetReactionForce(theirs);
+    theirs->SetReactionForce(mine);
+    if (m_hasParams) {   // the setters apply to both ends of the string
+        mine->SetStringForce(m_params.stringForce);
+        mine->SetFirstStringLength(m_params.firstStringLength);
+        mine->SetMaxBoost(m_params.maxBoost);
+        mine->SetMaxMergeT(m_params.maxMergeT);
+        mine->SetMaxMergeMag(m_params.maxMergeMag);
+    }
+    (*strings)[this].reset(mine);
+    (*strings)[m_partner].reset(theirs);
+    return *mine;
 }

@@ -26,14 +26,33 @@ public:
         G4double            magneticMoment = 0.0
     );
     ~Quirk();
-    const InfracolorForce& GetStringIn() const { return *m_stringIn; }
-    InfracolorForce& GetStringIn() { return *m_stringIn; }
+
+    // String parameters, shared by the quirk and its antiquirk. Set once, before the run.
+    struct StringParams {
+        G4double stringForce;
+        G4double firstStringLength;
+        G4double maxBoost;
+        G4double maxMergeT;
+        G4double maxMergeMag;
+    };
+    void SetStringParams(const StringParams& params);
+
+    // The string pulling on this quirk in the event being simulated by the calling thread.
+    // Particle definitions are shared by all Geant4 worker threads, so the string state is
+    // kept per thread: each thread holds its own linked pair for this quirk and its partner.
+    InfracolorForce& GetStringIn() const;
+
+    // Clear the calling thread's strings, so that an event never starts with string
+    // left over from the previous event on that thread (called by QuirkStackingAction).
+    static void ClearStrings();
 
     Quirk (const Quirk&) = delete;
     Quirk& operator= (const Quirk&) = delete;
 
 private:
-    InfracolorForce* m_stringIn;
+    Quirk* m_partner;
+    StringParams m_params;
+    G4bool m_hasParams;
 };
 
 #endif

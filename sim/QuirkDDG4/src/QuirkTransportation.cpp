@@ -281,7 +281,8 @@ AlongStepGetPhysicalInteractionLength( const G4Track&  track,
      G4bool forceStep = aFieldTrack.GetCurveLength() == 0 && !m_geometryLimitedStep;
      quirkStepper.Update(aFieldTrack, forceStep);
      // Diagnostic (QUIRK_STEPCHECK_FILE): compare the field track handed back by the propagator
-     // with the stepper's own hyperbola state at the same step length.
+     // with the stepper's own hyperbola state at the same step length. Single-threaded runs only:
+     // the file is shared by all threads.
      static std::ofstream* chk = nullptr; static int chkInit = 0;
      if (!chkInit) {
         chkInit = 1;
