@@ -86,7 +86,8 @@ Goal: samples of up to about 1M events (e.g. mu = 60), made the way ColliderML p
 3. quirk-gen per run, with the MadGraph process built once and copied per run (production's `madgraph_init` and per-run tarball).
 4. Packaging back: production's `package_native_parquet.py` and `verify_packaged_parquet.py`, unchanged, in the image. edm4hep and HepMC kept per run.
 5. Tested from a new work directory with podman-hpc: mu = 0, 3 runs x 10 events, 3 at a time (2.6 min); mu = 10, 2 runs x 5 events (2.7 min); both packaged and verified (PASS), loader reads both layouts, packaged event 10 = run 1 event 0.
-6. Next: the mu = 0 pilot, then mu = 10, then mu = 60, with the stage configs shown to Daniel before each. Measure time and memory per event to size the 1M-event mu = 60 sample.
+6. mu = 0 pilot done (2026-10-15): 8 runs x 500 events, m = 400 GeV, Lambda = 1 keV, 8 simulation threads per run. Generation and stage1 on an interactive node (8 runs at a time), simulation and digitisation as debug-QOS jobs with `colliderml/batch/slurm_runs.sh` (one task per run): generation 1.7 min, stage1 20 s, simulation 7.3 min (about 7 core-seconds per event), digitisation 1 min, packaging 34 s. Verifier PASS; 4000 unique events (ids and quirk momenta); 2 quirks in every event; 29.74 +- 0.24 quirk hits per event (run means 28.6-31.6), 15 events with no quirk hit; about 4000 tracker hits per event. Disk: 1.3 MB per event in the runs (edm4hep 0.38 MB, HepMC files 0.64 MB), 0.37 MB per event packaged. Found and fixed: the Slurm example looked for the repo next to sbatch's copy of the script.
+7. Next: mu = 10 pilot, then mu = 60, with the stage configs shown to Daniel before each.
 
 ## Open questions for Daniel / Jackson / Makayla
 
