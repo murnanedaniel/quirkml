@@ -70,12 +70,23 @@ Not tested: a different user account (their podman image pull, group read access
 Goal: the tutorial works for people outside m4958 and outside NERSC (Jackson's group), on any Linux machine with Docker, Podman or Apptainer. Stage 7 drove the stages through `run_stage.py`, the NERSC production driver, which assumes m4958 paths, podman-hpc and a Slurm account.
 
 1. Use the ColliderML container route instead (the one `colliderml.simulate()` uses): each stage script runs directly in the ODD image with `--config` and `--output`, with four host folders mounted (`/work`, `/workspace`, `/cache`, `/quirkml`). A small runner picks podman-hpc, Docker, Podman or Apptainer.
-2. Stage configs written with container paths; no `run_stage.py`, no Slurm account, no python env on the host for running. The packaging stage (a production postprocessing step) is dropped; the loader reads the per-run parquet.
+2. Stage configs written with container paths; no `run_stage.py`, no Slurm account, no python env on the host for running. The packaging stage was dropped here and is back in stage 9.
 3. Geant4 data downloaded into the user's own cache on first use, not read from m4958.
 4. quirk-gen: inside the image (route 1, default), or an LCG_109 view from cvmfs (route 2), entered directly on an el9 host, through shifter on NERSC, or through Apptainer with an el9 image elsewhere.
 5. Tested from fresh GitHub clones in `$PSCRATCH` (outside m4958): podman-hpc for mu = 0 (20 events, 3.7 min) and mu = 200 (5 events, 21 min); Apptainer 1.5 (from cvmfs) for mu = 0, including quirk-gen through Apptainer and the LCG view. Both runtimes gave 2 quirks and about 27 quirk hits per event. Two Apptainer problems found and fixed: the Geant4 data download went into the in-memory overlay, and `uv` in the image wrote to the user's home (which went over quota).
 6. One image for everything: OpenDataDetector/sw branch `feat/python-pythia8-hepmc3` adds `+python` to pythia8 and hepmc3 (GitHub Actions, manual run on the branch, no PR), image `ghcr.io/opendatadetector/sw:feat-python-pythia8-hepmc3`, now the default. MadGraph was already in the image. The python modules are not on the image's `PYTHONPATH`; `run_quirkgen.sh` adds them. Tested with podman-hpc from a fresh directory, mu = 0, 20 events: quirk-gen 44 s, all stages 2.5 min, 2 quirks and 30 quirk hits per event. The same with Apptainer from cvmfs (setup 19 min, mostly the image conversion; the rest 3 min; 2 quirks and 30.4 quirk hits per event). The counts differ from the earlier 27 because MadGraph 3.5.9 and the image's Pythia give different events from the LCG_109 ones at the same seed).
 7. Not tested: Docker (not available here; same command form as the ColliderML library). The image tag follows a feature branch; it changes if the branch is rebuilt.
+
+## Stage 9: large samples in runs, multi-threaded simulation - code done, pilots next (2026-10-15)
+
+Goal: samples of up to about 1M events (e.g. mu = 60), made the way ColliderML production makes them, then three pilots: mu = 0, mu = 10, mu = 60, each after Daniel has seen the previous one and its stage configs.
+
+1. QuirkDDG4 is thread-safe: string state per thread, stacking action on every worker, strings cleared per event (`docs/colliderml.md`, "Multi-threaded simulation"). One thread: identical to before on 20 events. 1 against 8 threads on 400 events: quirk hits per event -0.07 +- 0.16 apart; 5.7 times faster.
+2. Runs as in production: `runs` x `events_per_run`, `<work_dir>/quirks/<dataset>/<version>/runs/<N>/`, seed `<dataset>_<version>_run<N>` for every stage of run N (and quirk-gen), each stage over all runs before the next. `colliderml/run_stage.sh` runs one stage over runs (`--run-range`, `--run-list`, `--parallel K`, finished runs skipped, `status`); `colliderml/batch/` has Slurm and HTCondor examples.
+3. quirk-gen per run, with the MadGraph process built once and copied per run (production's `madgraph_init` and per-run tarball).
+4. Packaging back: production's `package_native_parquet.py` and `verify_packaged_parquet.py`, unchanged, in the image. edm4hep and HepMC kept per run.
+5. Tested from a new work directory with podman-hpc: mu = 0, 3 runs x 10 events, 3 at a time (2.6 min); mu = 10, 2 runs x 5 events (2.7 min); both packaged and verified (PASS), loader reads both layouts, packaged event 10 = run 1 event 0.
+6. Next: the mu = 0 pilot, then mu = 10, then mu = 60, with the stage configs shown to Daniel before each. Measure time and memory per event to size the 1M-event mu = 60 sample.
 
 ## Open questions for Daniel / Jackson / Makayla
 

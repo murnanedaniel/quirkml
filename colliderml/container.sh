@@ -36,6 +36,12 @@ if qml_is_apptainer; then
 fi
 QML_SIF=$QML_WORK/sw-$(echo "$QUIRKML_IMAGE" | sed 's|.*:||').sif
 
+# What the plugin in <work_dir>/plugin must have been built from: this image and the current
+# QuirkDDG4 source. setup.sh writes it to plugin/BUILD_STAMP; run_stage.sh checks it.
+qml_plugin_stamp() {
+  echo "$QUIRKML_IMAGE $(cat "$QML_REPO"/sim/QuirkDDG4/CMakeLists.txt "$QML_REPO"/sim/QuirkDDG4/src/* | md5sum | cut -c1-12)"
+}
+
 # Make the image available locally (pull once).
 qml_pull() {
   if qml_is_apptainer; then

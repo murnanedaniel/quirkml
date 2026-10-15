@@ -2,15 +2,16 @@
 # events at generator level (ACTS HepMC3Reader), with Gaussian beam-spot smearing of every vertex.
 dataset: "{DATASET}"
 stage: "pythia_generation"
-events: {EVENTS}
+events: {EVENTS_PER_RUN}
 threads: 1
-seed: {SEED_GEN}
+# seed: given per run on the command line, <dataset>_<version>_run<N> (colliderml/run_stage.sh)
 pileup: {MU}
 poisson_sample: true
 poisson_buffer_sigma: 5.0
-hard_process:                          # unset: the hard scatter comes from hard_scatter_file
+hard_process:                          # unset: the hard scatter is read from a file (below)
 merge: true
-hard_scatter_file: /work/runs/{DATASET}/events_hepmc2.hepmc   # quirk-gen output converted with convert_quirkgen_hepmc.sh
+# hard scatter: the run's events_hepmc2.hepmc (quirk-gen output, converted), given per run with
+# --hard-scatter-file by colliderml/run_stage.sh
 vertex_sigma_xy: 0.0125                # mm
 vertex_sigma_z: 55.5                   # mm
 vertex_sigma_t: 0.185                  # ns

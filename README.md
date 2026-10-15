@@ -13,9 +13,10 @@ git clone https://github.com/murnanedaniel/quirkml.git
 bash quirkml/colliderml/setup.sh quirks
 cp quirkml/colliderml/sample.yaml my_sample.yaml        # set the physics point
 python3 quirkml/colliderml/make_sample.py my_sample.yaml
-bash quirkml/gen/run_quirkgen.sh quirks/configs/m400_L1000_mu0
 bash quirkml/colliderml/run_sample.sh quirks/configs/m400_L1000_mu0
 ```
+
+Large samples use the same commands: set `runs` and `events_per_run`, then run each stage over the runs on one machine or as batch jobs (tutorial section 5).
 
 **Status (2026-10-15): work in progress.** `ROADMAP.md` lists what works today and what's planned before handover.
 
@@ -35,12 +36,12 @@ This repo takes that HepMC3 and does:
 |---|---|
 | `sim/QuirkDDG4/` | DDG4 plugin: Athena's quirk string transport ported to DD4hep/ddsim (Geant4 11.3). `colliderml/setup.sh` builds it inside the ODD image for the tutorial route; `build.sh` builds for LCG_107 and `build_colliderml.sh` for the sim image with podman-hpc (both NERSC/m4958 only) |
 | `sim/run_quirk_ddsim.py`, `sim/run_in_shifter.sh` | stand-alone ddsim driver for the plugin, and a wrapper for the el9 container on Perlmutter |
-| `colliderml/` | the ColliderML route (`docs/tutorial.md`): `setup.sh`, `sample.yaml`, `make_sample.py`, `run_sample.sh`, stage-config templates, the quirk-gen file converter, and the configs the 2026-10-14 pilots ran with (`pilot_*`; old `run_stage.py` route with m4958 paths, kept as a record, not for new samples) |
+| `colliderml/` | the ColliderML route (`docs/tutorial.md`): `setup.sh`, `sample.yaml`, `make_sample.py`, `run_stage.sh` (one stage over many runs) and `run_sample.sh` (all stages), batch examples, stage-config templates, the quirk-gen file converter, and the configs the 2026-10-14 pilots ran with (`pilot_*`; old `run_stage.py` route with m4958 paths, kept as a record, not for new samples) |
 | `grid/` | grid proposal, simulation cost against string tension, and the script that measured it |
 | `ml/` | parquet loader with time-ordered quirk truth, writer for quirk-tracking, coplanarity and ionisation baselines |
 | `quirk_sim/` | fast quirk-pair model in Python/numba: straight string, both ends at the same lab time, RK4 in lab time, no energy loss |
 | `fit/` | coupled two-quirk fit of mass, tension and momenta to hits, with two-helix and 1/r^2 alternatives, and a road search kernel for pileup |
-| `gen/` | `run_quirkgen.sh` (quirk-gen for one sample), and a small Pythia8 Hidden Valley generator for quick tests |
+| `gen/` | `run_quirkgen.sh` and `quirkgen_run.sh` (quirk-gen for one run), and a small Pythia8 Hidden Valley generator for quick tests |
 | `validation/` | Geant4 vs quirk_sim vs exact-motion comparisons |
 | `docs/` | `tutorial.md` (make a sample), `colliderml.md` (what each step does), `validation_status.md`, `ml_baselines.md` |
 
@@ -57,7 +58,7 @@ bash sim/run_in_shifter.sh --compact $ODD_XML \
     --pdg 10000100 --charge 1 --mass 400 --string-force 5067.73
 ```
 
-`--string-force` is the tension Lambda^2/hbar c in MeV/mm (Lambda = 1 keV gives 5067.73); quirk-gen writes the same number as `stringforce_mev_per_mm`. quirk-gen's quirk is PDG +10000100 with charge +1, and the plugin gives +PDG the charge `--charge`. The plugin is single-threaded, because the two quirks share one string object.
+`--string-force` is the tension Lambda^2/hbar c in MeV/mm (Lambda = 1 keV gives 5067.73); quirk-gen writes the same number as `stringforce_mev_per_mm`. quirk-gen's quirk is PDG +10000100 with charge +1, and the plugin gives +PDG the charge `--charge`. The plugin runs multi-threaded (one event per thread); `run_quirk_ddsim.py` itself uses one thread.
 
 These commands are for a quick stand-alone run and have not been tried on a quirk-gen file. quirk-gen files need converting first (`colliderml/convert_quirkgen_hepmc.sh`); for samples use `docs/tutorial.md`.
 

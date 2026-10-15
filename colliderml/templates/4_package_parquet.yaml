@@ -1,0 +1,21 @@
+# Quirk sample, packaging: join the per-run parquet of all runs into the published ColliderML
+# layout (production's scripts/postprocessing/package_native_parquet.py, unchanged):
+#   <output_base_dir>/{CAMPAIGN}/{DATASET}/{VERSION}/parquet/{{truth,reco}}/<object>/
+#       {CAMPAIGN}.{DATASET}.{VERSION}.<group>.<object>.events<A>-<B>.parquet
+# event_id = run * run_size + local event, times in ns (the per-run files have mm).
+campaign: "{CAMPAIGN}"
+dataset: "{DATASET}"
+version: "{VERSION}"
+stage: "package_parquet"
+input_base_dir: /work
+output_base_dir: /work
+run_size: {EVENTS_PER_RUN}
+chunk_size: {CHUNK_SIZE}
+objects:
+  - particles
+  - tracker_simhits
+  - tracker_hits
+  - tracks
+  - truth_tracks
+compression: "snappy"
+row_group_size: 100000

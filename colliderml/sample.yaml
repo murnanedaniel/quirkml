@@ -3,16 +3,31 @@
 # Flat "key: value" lines only.
 
 # The directory you gave colliderml/setup.sh. Everything goes in here: quirk-gen output, configs,
-# runs, the Geant4 data and the image (about 15 GB in all). A relative path is relative to this
-# settings file; $VARS and ~ are expanded.
+# runs, the Geant4 data and the image (about 15 GB in all, plus the sample). A relative path is
+# relative to this settings file; $VARS and ~ are expanded.
 work_dir: quirks
 
-# Physics point. The dataset is named m<mass>_L<lambda>_mu<mu>; runs go to <work_dir>/runs/<dataset>/.
+# Physics point. The dataset is named m<mass>_L<lambda>_mu<mu>.
 mass_gev: 400        # quirk mass; quirk-gen generates this
 lambda_ev: 1000      # string scale Lambda (sqrt of the tension); used only in the simulation
 mu: 0                # pileup: 0 for none, else mean number of Pythia8 SoftQCD events
-events: 20           # events through the whole chain (quirk-gen generates this many)
-seed: 1              # quirk-gen seed; the ColliderML stages use seed + 41, + 42, + 43
+
+# Size. The sample is split into runs of events_per_run events, as in ColliderML production;
+# each run is generated, simulated and digitised on its own, so runs can go to different cores,
+# nodes or batch jobs. Runs go to <work_dir>/quirks/<dataset>/<version>/runs/<N>/.
+runs: 1
+events_per_run: 20
+# The seed of each run and stage is the string <dataset>_<version>_run<N>, as in ColliderML
+# production, so rerunning a run gives the same events. Use a new version for an independent sample.
+version: v1
+
+# Threads per run. Simulation and digitisation run multi-threaded within a run, one event per
+# thread. When several runs share a machine, keep runs at once x threads within its cores.
+sim_threads: 8
+digi_threads: 8
+
+# Packaging: events per output parquet file (1000 is the ColliderML convention for ttbar-like events).
+chunk_size: 1000
 
 # Simulation. MaxBoost caps the QuirkDDG4 step; 1e-2 is off by 1.3 mm at Lambda = 0.5 keV,
 # 1e-3 agrees with 1e-4 to 0.1 mm (docs/validation_status.md).

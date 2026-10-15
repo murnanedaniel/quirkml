@@ -2,7 +2,7 @@
 # quirk-gen puts every vertex at the origin; these are the ColliderML hard-scatter widths.
 dataset: "{DATASET}"
 stage: "merge_smear"
-seed: {SEED_GEN}
+# seed: given per run on the command line, <dataset>_<version>_run<N> (colliderml/run_stage.sh)
 input_filename: events_hepmc2.hepmc    # quirk-gen output converted with convert_quirkgen_hepmc.sh
 vertex_sigma_xy: 0.0125               # mm
 vertex_sigma_z: 55.5                  # mm

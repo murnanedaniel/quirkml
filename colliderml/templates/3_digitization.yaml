@@ -2,9 +2,9 @@
 # Note: ACTS seeding/CKF/truth tracking assume helices; for quirks use tracker_simhits and tracker_hits.
 dataset: "{DATASET}"
 stage: "digitization"
-events: {EVENTS}
-threads: 8
-seed: {SEED_DIGI}
+events: {EVENTS_PER_RUN}
+threads: {DIGI_THREADS}
+# seed: given per run on the command line, <dataset>_<version>_run<N> (colliderml/run_stage.sh)
 odd_geo_dir: /opt/odd
 digi_config: /opt/odd/config/odd-digi-geometric-config.json
 output_parquet_arrow: True

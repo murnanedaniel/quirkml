@@ -36,67 +36,82 @@ It took about 3 minutes in our tests once the image was downloaded; with Apptain
 cp quirkml/colliderml/sample.yaml my_sample.yaml
 ```
 
-`work_dir: quirks` already matches the command above (a relative path is relative to the settings file). Set the physics point: `mass_gev`, `lambda_ev` (the string scale), `mu` (0 for no pileup) and `events`. Then:
+`work_dir: quirks` already matches the command above (a relative path is relative to the settings file). Set the physics point, `mass_gev`, `lambda_ev` (the string scale) and `mu` (0 for no pileup), and the size, `runs` and `events_per_run`. The defaults, 1 run of 20 events, are a quick first sample. Then:
 
 ```bash
 python3 quirkml/colliderml/make_sample.py my_sample.yaml
 ```
 
-This writes the stage configs to `quirks/configs/<dataset>/` (the dataset is named e.g. `m400_L1000_mu0`), creates the run directory `quirks/runs/<dataset>/`, and prints the next two commands.
+This writes the stage configs to `quirks/configs/<dataset>/` (the dataset is named e.g. `m400_L1000_mu0`), creates the runs directory `quirks/quirks/<dataset>/v1/runs/`, and prints the commands below.
 
-## 3. Generate the quirk events
+As in ColliderML production, a sample is a set of runs. Run `N` is generated, simulated and digitised on its own, in `runs/<N>/`, with the seed `<dataset>_<version>_run<N>`, so rerunning a run gives the same events and runs can be spread over cores, nodes or batch jobs. At the end, packaging joins all runs into one dataset.
 
-```bash
-bash quirkml/gen/run_quirkgen.sh quirks/configs/m400_L1000_mu0
-```
-
-This runs [quirk-gen](https://github.com/burzynski-lab/quirk-gen) at a fixed commit inside the image, in `quirks/quirkgen/`, and copies `events.hepmc` and `events.json` into the run directory. It also writes `events_hepmc2.hepmc`, the same events numbered from 0, which the next stage reads. 20 events took under a minute (MadGraph compiles the process the first time).
-
-quirk-gen's `--lambda` is only recorded in `events.json`. The string acts only in the simulation, so the events of one mass serve every `lambda_ev`.
-
-## 4. Run the ColliderML stages
+## 3. Run the stages
 
 ```bash
 bash quirkml/colliderml/run_sample.sh quirks/configs/m400_L1000_mu0
 ```
 
-Run it where you have 8 cores for up to an hour: a workstation, or an interactive or batch job on a cluster.
+Run it where you have 8 cores for up to an hour: a workstation, or an interactive or batch job on a cluster. `run_sample.sh` runs the five stages below in order, each over all runs before the next starts, with `colliderml/run_stage.sh`. To run one stage yourself:
 
-`run_sample.sh` runs three stages in the image, checks that each wrote its output before starting the next, and stops with a `STOP:` line naming what is missing. Logs are in `quirks/configs/<dataset>/logs/`. To restart from stage `n`, add `n` after the config directory.
+```bash
+bash quirkml/colliderml/run_stage.sh quirks/configs/m400_L1000_mu0 simulation
+bash quirkml/colliderml/run_stage.sh quirks/configs/m400_L1000_mu0 status
+```
 
 | Stage | What it does |
 |---|---|
-| 1 | beam spot (Gaussian: 12.5 um in x and y, 55.5 mm in z); for `mu > 0` also Pythia8 SoftQCD pileup, merged in |
-| 2 | Geant4 on the ODD v6 tracker with QuirkDDG4 (one core: the two quirks share one string object) |
-| 3 | ACTS geometric digitisation, written as parquet |
+| `generation` | [quirk-gen](https://github.com/burzynski-lab/quirk-gen) at a fixed commit, inside the image: MadGraph builds the process once (in `quirks/quirkgen/`), then each run gets its own events, `events.hepmc`, `events.json`, and `events_hepmc2.hepmc` (the same events numbered from 0, which the next stage reads) |
+| `stage1` | beam spot (Gaussian: 12.5 um in x and y, 55.5 mm in z); for `mu > 0` also Pythia8 SoftQCD pileup, generated per run and merged in |
+| `simulation` | Geant4 on the ODD v6 tracker with QuirkDDG4, `sim_threads` threads per run (one event per thread); writes `edm4hep.root` |
+| `digitization` | ACTS geometric digitisation, written as parquet per run |
+| `package` | all runs into one dataset in the published ColliderML layout, then a check of the result (`verify_packaged_parquet.py`) |
 
-Times on one node of a CPU cluster, m = 400 GeV, Lambda = 1 keV: mu = 0 with 20 events took 2.5 minutes for the three stages (simulation 2 minutes), with podman-hpc and with Apptainer; each event had two quirks with about 30 hits from them. mu = 200 with 5 events took 21 minutes (with the earlier image `sw:pr-8`); an event then has about 200,000 tracker hits.
+After each run, the driver checks the run's output (event counts) and marks it done; finished runs are skipped, so after a failure the same command carries on with the rest. A failure prints `FAILED` with the run's log, in `quirks/configs/<dataset>/logs/<stage>/run<N>.log`.
 
-## 5. Read it
+quirk-gen's `--lambda` is only recorded in `events.json`. The string acts only in the simulation, so the events of one mass serve every `lambda_ev`.
 
-The parquet tables are in `quirks/runs/<dataset>/` (`tracker_hits/`, `tracker_simhits/`, `particles/`, ...):
+Times on one node of a CPU cluster (podman-hpc), m = 400 GeV, Lambda = 1 keV:
+
+- mu = 0, 3 runs of 10 events, 3 runs at a time with 4 threads each: 2.6 minutes for all five stages (generation 1.5 minutes, of which about 45 s builds the MadGraph process; simulation 50 s). About 30 quirk hits and 4,000 tracker hits per event.
+- mu = 10, 2 runs of 5 events: 2.7 minutes; 8,000-17,000 tracker hits per event.
+- Simulation of 400 events at mu = 0 in one run: 6 minutes with 8 threads, 35 minutes with 1.
+- mu = 200, 5 events in one thread (earlier image `sw:pr-8`): 21 minutes; an event then has about 200,000 tracker hits.
+
+## 4. Read it
+
+The packaged dataset is in `quirks/quirks/<dataset>/v1/parquet/`, in the layout of the published ColliderML datasets: `truth/particles`, `truth/tracker_simhits`, `reco/tracker_hits`, `reco/tracks`, `reco/truth_tracks`, files of `chunk_size` events named `quirks.<dataset>.v1.<group>.<object>.events<A>-<B>.parquet`. Event ids run over the whole sample (run `N`, event `i` is `N * events_per_run + i`) and times are in ns.
 
 ```python
 import sys; sys.path.insert(0, "quirkml/ml")
 from quirk_loader import QuirkDataset
-ds = QuirkDataset("quirks/runs/m400_L1000_mu0")
+ds = QuirkDataset("quirks/quirks/m400_L1000_mu0/v1/parquet")
 ev = ds.event(ds.event_ids[0])     # hits, particles, truth_edges
 quirks = ev["particles"][ev["particles"].is_quirk]
 print(len(quirks), "quirks,", ev["hits"].is_quirk.sum(), "quirk hits")
 ```
 
-`docs/ml_baselines.md` describes the tables and what is usable for quirks. In short: use `tracker_hits` and `tracker_simhits`; the `tracks` tables come from helix fits and are not meaningful for quirks.
+`QuirkDataset` also reads one run's own parquet (`.../runs/<N>/`), whose event ids start at 0 and whose times are in mm (c t). `docs/ml_baselines.md` describes the tables and what is usable for quirks. In short: use `tracker_hits` and `tracker_simhits`; the `tracks` tables come from helix fits and are not meaningful for quirks. Each run also keeps its `edm4hep.root` (the full Geant4 output) and its HepMC files.
+
+## 5. Large samples
+
+The same commands make large samples; set `runs` and `events_per_run` in the settings file. ColliderML production uses runs of 1000-1300 events for ttbar-like samples; for quirks with pileup, pick `events_per_run` so that one run's simulation takes a few hours (see the times above).
+
+- **One machine.** `--parallel K` runs `K` runs of a stage at a time, e.g. on a 128-core node with `sim_threads: 8`, `--parallel 16`. Keep `K` times the stage's threads within the cores. `stage1` with pileup is single-threaded, so it can take a larger `K`.
+- **A batch system.** Each run is an independent job: `run_stage.sh <config_dir> <stage> --run-list <N>`. Submit one stage over all runs, wait for it to finish, then the next stage, then `package` once. `colliderml/batch/` has examples for Slurm (one task per run, as production's `multi_node_slurm` mode) and HTCondor (one job per run). Build the MadGraph process first, with `run_stage.sh <config_dir> generation --run-list 0`, so that the generation jobs don't all build it at once.
+- **Checking.** `run_stage.sh <config_dir> status` lists, per stage, how many runs are done and which are missing; rerun those with `--run-list`. `package` refuses to start until every run is digitised, because the packaged event ids assume runs 0 to `runs - 1` with no gaps.
+- **Disk.** Per run, `edm4hep.root` and the HepMC files are kept; they take more space than the parquet (at mu = 200, about 24 MB and 19 MB per event against 21 MB of parquet).
 
 ## Things that go wrong
 
 - **No container runtime found.** Install one, or set `QUIRKML_RUNTIME` to its full path.
 - **Apptainer fills your home directory.** The scripts put Apptainer's cache in `<work_dir>/cache/apptainer`; if you run Apptainer by hand, set `APPTAINER_CACHEDIR` yourself.
-- **Changing the mass without rerunning step 3.** `run_sample.sh` compares `events.json` with the settings file and stops.
-- **Using another image.** Set `QUIRKML_IMAGE` before `setup.sh` (it rebuilds the plugin for that image). If the image has no Pythia8 python bindings, for example `ghcr.io/opendatadetector/sw:pr-8`, `run_quirkgen.sh` falls back to the LCG_109 view from cvmfs (`docs/colliderml.md`).
-- **Many events, or a high string tension.** Simulation is single-threaded and its cost grows with the tension: about 1-3 minutes per pair-only event at Lambda = 10-30 keV, and at 100 keV one event didn't finish in 20 minutes (`grid/README.md`). Start with tens of events.
+- **Changing the mass of an existing sample.** The generation check compares each run's `events.json` with the settings file and marks the run failed. Make a new sample (or a new `version`) instead.
+- **Using another image.** Set `QUIRKML_IMAGE` before `setup.sh` (it rebuilds the plugin for that image). If the image has no Pythia8 python bindings, for example `ghcr.io/opendatadetector/sw:pr-8`, the generation stage falls back to the LCG_109 view from cvmfs (`docs/colliderml.md`).
+- **A high string tension.** Simulation cost grows with the tension: about 1-3 minutes per pair-only event on one thread at Lambda = 10-30 keV, and at 100 keV one event didn't finish in 20 minutes (`grid/README.md`). Start with tens of events.
 
 ## Site notes
 
-- **NERSC (Perlmutter).** podman-hpc is found first. Work on `$PSCRATCH` (MadGraph fails on CFS, and home is small); it is purged after 8 weeks without access, so copy the parquet you want to keep. Run steps 1, 3 and 4 in a compute allocation, not on a login node (see step 1), e.g. `salloc -A <account> -C cpu -q shared_interactive -t 60 -c 8`, then `srun -n 1 -c 8 bash quirkml/colliderml/setup.sh quirks` and the same `srun` prefix for the other two.
+- **NERSC (Perlmutter).** podman-hpc is found first. Work on `$PSCRATCH` (MadGraph fails on CFS, and home is small); it is purged after 8 weeks without access, so copy the parquet you want to keep. Run steps 1 and 3 in a compute allocation, not on a login node (see step 1), e.g. `salloc -A <account> -C cpu -q shared_interactive -t 60 -c 8`, then `srun -n 1 -c 8 bash quirkml/colliderml/setup.sh quirks` and the same `srun` prefix for `run_sample.sh`. For large samples, `colliderml/batch/slurm_runs.sh` runs one task per run.
 - **lxplus and other hosts with Apptainer.** Use Apptainer (`QUIRKML_RUNTIME=apptainer`); keep the work directory off AFS home, which is too small.
 

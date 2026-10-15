@@ -1,6 +1,6 @@
 # Quirk samples through the ColliderML chain
 
-`docs/tutorial.md` is the how-to: it makes a sample from one settings file. This page explains what each step does, for when something needs changing. The chain is the ColliderML production code ([colliderml-production](https://github.com/OpenDataDetector/colliderml-production)). Each stage script runs directly inside the ODD software image with `--config` and `--output`, the same way the ColliderML python library's `colliderml.simulate()` runs them. The scripts here do not use `run_stage.py`, `env_setup.yaml`, Slurm or a packaging stage.
+`docs/tutorial.md` is the how-to: it makes a sample from one settings file. This page explains what each step does, for when something needs changing. The chain is the ColliderML production code ([colliderml-production](https://github.com/OpenDataDetector/colliderml-production)). Each stage script runs directly inside the ODD software image, the way the ColliderML python library's `colliderml.simulate()` runs them, and over runs the way production's `run_stage.py` does: one job per run, with the same arguments and seeds. The scripts here do not use `run_stage.py` itself, `env_setup.yaml` or Slurm, which tie it to NERSC; `colliderml/batch/` has examples for batch systems.
 
 ## The container and mounts
 
@@ -21,19 +21,19 @@ Runtime: `$QUIRKML_RUNTIME` if set. Otherwise the first of `podman-hpc`, `docker
 
 1. Clones colliderml-production into `<work_dir>/colliderml-production`: branch `quirk/pilot-integration`, checked out at `6495666`.
 2. Pulls the image (`qml_pull`).
-3. Builds the QuirkDDG4 plugin inside the image from `sim/QuirkDDG4` with cmake, and copies `libQuirkDDG4.so` and `libQuirkDDG4.components` to `<work_dir>/plugin/`.
+3. Builds the QuirkDDG4 plugin inside the image from `sim/QuirkDDG4` with cmake, and copies `libQuirkDDG4.so` and `libQuirkDDG4.components` to `<work_dir>/plugin/`. `plugin/BUILD_STAMP` records the image and a checksum of the plugin source; `setup.sh` rebuilds when either changes, and `run_stage.sh` stops if they don't match.
 
 Geant4 data (2-4 GB) is downloaded into `cache/g4data` the first time the image environment is set up, which is during the plugin build in `setup.sh`.
 
 ## Settings and configs
 
-`colliderml/sample.yaml` has flat `key: value` lines: `work_dir`, `mass_gev`, `lambda_ev`, `mu`, `events`, `seed`, `max_boost`. `colliderml/make_sample.py <settings>` reads them (python3 only, no pyyaml) and fills the files in `colliderml/templates/`.
+`colliderml/sample.yaml` has flat `key: value` lines: `work_dir`, `mass_gev`, `lambda_ev`, `mu`, `runs`, `events_per_run`, `version`, `sim_threads`, `digi_threads`, `chunk_size`, `max_boost`. `colliderml/make_sample.py <settings>` reads them (python3 only, no pyyaml) and fills the files in `colliderml/templates/`.
 
-- Dataset name: `m<mass>_L<lambda>_mu<mu>`.
-- Configs go to `<work_dir>/configs/<dataset>/`; the run directory is `<work_dir>/runs/<dataset>/`.
-- `sample.env` in the config directory holds the resolved settings for `gen/run_quirkgen.sh` and `colliderml/run_sample.sh`.
-- Seeds: the settings seed is passed to quirk-gen. The stage seeds are seed + 41 (stage 1), + 42 (simulation), + 43 (digitisation).
-- Stage 1 is `1_merge_smear.yaml` for mu = 0 and `1_pythia_pileup_merge.yaml` for mu > 0.
+- Dataset name: `m<mass>_L<lambda>_mu<mu>`; campaign `quirks`; version from the settings (`v1`).
+- Configs go to `<work_dir>/configs/<dataset>/`. Runs go to `<work_dir>/quirks/<dataset>/<version>/runs/<N>/`, production's `<campaign>/<dataset>/<version>/runs/<N>` layout, and the packaged dataset to `<work_dir>/quirks/<dataset>/<version>/parquet/`.
+- `sample.env` in the config directory holds the resolved settings for `gen/run_quirkgen.sh` and `colliderml/run_stage.sh`.
+- Seeds: as in production (`cli_utils.build_stage_command`), every stage of run `N` gets `--seed <dataset>_<version>_run<N>`, which the stage scripts hash to an integer (`hash_seed_string`: md5, first 4 bytes, modulo 900000000). The stage scripts offset it where they need two streams (Pythia8 pileup uses seed + 1000). quirk-gen gets the same integer, computed by `gen/run_quirkgen.sh`. Reruns of a run give the same events; a new `version` gives an independent sample.
+- Stage 1 is `1_merge_smear.yaml` for mu = 0 and `1_pythia_pileup_merge.yaml` for mu > 0. `4_package_parquet.yaml` is the packaging config.
 - Paths in the configs are paths inside the container.
 
 Plugin values in `2_simulation.yaml`:
@@ -51,7 +51,12 @@ Plugin values in `2_simulation.yaml`:
 
 ## quirk-gen and the HepMC conversion
 
-`gen/run_quirkgen.sh <config_dir>` clones `burzynski-lab/quirk-gen` at `9980db3` into `<work_dir>/quirkgen/` and runs `scripts/run_chain.sh` with the mass, events, Lambda and seed. It copies `events.hepmc` and `events.json` to the run directory and writes `events_hepmc2.hepmc` there. `QUIRKGEN_ENV=image` or `lcg` forces a route.
+`gen/run_quirkgen.sh <config_dir> init|<run>` clones `burzynski-lab/quirk-gen` at `9980db3` into `<work_dir>/quirkgen/` and runs `gen/quirkgen_run.sh` in the chosen environment. `QUIRKGEN_ENV=image` or `lcg` forces a route. `run_stage.sh <config_dir> generation` calls `init` once and then each run.
+
+`quirkgen_run.sh` does what quirk-gen's `scripts/run_chain.sh` does (`generate_lhe.py`, then `shower.py`, with the run's mass, events, Lambda and seed), arranged as production arranges MadGraph (`madgraph_init` once, then a copy of the process per run):
+
+- `init` builds the MadGraph process once, in `<work_dir>/quirkgen/procdir_<route>`, with a 10-event test run. The process depends only on the model, not on the mass.
+- Each run copies it to a temporary directory, sets `nb_core` to `sim_threads` (or `$QUIRKGEN_CORES`) in its `me5_configuration.txt`, generates, showers, and writes `events.hepmc`, `events.json` and `events_hepmc2.hepmc` to `runs/<N>/`. Runs can therefore go at the same time.
 
 **Route 1: inside the ODD image (default).** The image has MadGraph 3.5.9 in its spack tree, and the default image also has the Pythia8 (8.313) and HepMC3 (3.3.0) python modules. These are not on the image's `PYTHONPATH`, so the script adds `/spack/opt/spack/linux-x86_64/pythia8-*/lib` and `hepmc3-*/lib/python3*/site-packages`. Used when `import pythia8, pyHepMC3` then works. Tested with podman-hpc and Apptainer: 20 events in about 45 s. Without the bindings (e.g. `sw:pr-8`), the script uses route 2.
 
@@ -59,36 +64,67 @@ Plugin values in `2_simulation.yaml`:
 
 **Why the conversion exists.** quirk-gen numbers events from 1; the ACTS HepMC3Reader used in the pileup merge stops with "Event number mismatch" unless the first event is 0. With route 2 there is a second reason: the LCG_109 HepMC3 is 3.03.01 and writes the quirk-gen files. The image's HepMC3 is 3.3.0. It rejects some events from 3.03 files ("too few vertices were parsed") and returns empty events without a pipeline error. `colliderml/convert_to_hepmc2.py` reads the file with the HepMC3 of the environment that wrote it and writes HepMC2 ASCII numbered from 0. In route 2 the conversion runs inside the LCG environment. `colliderml/convert_quirkgen_hepmc.sh <in> <out>` does the same conversion by hand, using shifter if the host is not AlmaLinux.
 
-## The three stages
+## The stages
 
-`colliderml/run_sample.sh <config_dir> [first_stage]` runs the stages in order. Each runs as `cd /workspace/scripts/simulation && python3 <script> --config /work/configs/<dataset>/<cfg> --output /work/runs/<dataset>`. Logs go to `<config_dir>/logs/<cfg>.log`. A non-zero exit code stops the run. Before stage 1 the script checks that `events.json` has the sample's mass and PDG id and charge 1, and that `events_hepmc2.hepmc` has at least `events` events (counted as lines starting `E `).
+`colliderml/run_stage.sh <config_dir> <stage> [--run-range A B | --run-list N ...] [--parallel K] [--force]` runs one stage over runs (default all; `--run-range` is A to B-1, as in production). Each run is one command in the image:
 
-| Stage | Script | Reads | Writes | Check after the stage |
+```
+cd /workspace/scripts/simulation && python3 <script> --config /work/configs/<dataset>/<cfg> \
+    --output /work/quirks/<dataset>/<version>/runs --output-subdir <N> --seed <dataset>_<version>_run<N>
+```
+
+which is the command production's `build_stage_command` builds. `--parallel K` runs K runs at a time (xargs). A stage starts only for runs that have finished the previous stage. After a run, its output is checked, and if the check passes the driver writes `runs/<N>/.done_<stage>`; finished runs are skipped unless `--force`. Logs go to `<config_dir>/logs/<stage>/run<N>.log`. `status` counts, per stage, the runs done and lists the missing ones. `colliderml/run_sample.sh <config_dir> [--parallel K]` runs all stages in order.
+
+| Stage | Script | Reads | Writes | Check after each run |
 |---|---|---|---|---|
-| 1, mu = 0 | `merge_and_smear.py` | `events_hepmc2.hepmc` | `merged_events.hepmc3` | at least `events` events in it |
-| 1, mu > 0 | `pythia_gen.py` | `events_hepmc2.hepmc` | `merged_events.hepmc3` | same |
-| 2 | `ddsim_run.py` | `merged_events.hepmc3` | `edm4hep.root` | file exists and is not empty |
-| 3 | `digi_and_reco.py` | `edm4hep.root` | parquet directories | `tracker_hits`, `tracker_simhits`, `particles` each have a parquet file |
+| `generation` | quirk-gen (above) | | `events.hepmc`, `events.json`, `events_hepmc2.hepmc` | `events_per_run` events (lines starting `E `); `events.json` has the sample's mass, PDG id and charge 1 |
+| `stage1`, mu = 0 | `merge_and_smear.py` | `events_hepmc2.hepmc` | `merged_events.hepmc3` | `events_per_run` events |
+| `stage1`, mu > 0 | `pythia_gen.py`, with `--hard-scatter-file runs/<N>/events_hepmc2.hepmc` | same | same | same |
+| `simulation` | `ddsim_run.py` | `merged_events.hepmc3` | `edm4hep.root` | exit code 0 and `events_per_run` events (`podio-dump`) |
+| `digitization` | `digi_and_reco.py` | `edm4hep.root` | parquet directories | `tracker_hits`, `tracker_simhits`, `particles` each have a parquet file |
+| `package` | `package_native_parquet.py`, then `verify_packaged_parquet.py` | all runs' parquet | `parquet/{truth,reco}/<object>/` | the verifier's checks |
 
-**Stage 1.** quirk-gen puts every event at the origin. Both variants smear vertices with a Gaussian beam spot: 12.5 um in x and y, 55.5 mm in z, 0.185 ns in t. For mu > 0, `pythia_generation` has `hard_process` unset, `merge: true` and `hard_scatter_file` set to the converted file. It generates Pythia8 SoftQCD events and merges a Poisson number of them (mean `pileup`) into each quirk event.
+Before digitising a run, the driver moves any parquet tables already in the run directory to `runs/<N>/.old_digitization_<time>/`: `digi_and_reco.py` does not replace old shards, and packaging would read both.
 
-**Stage 2.** The `simulation` stage has a `user_physics` block (from the `feat/user-physics-plugin` branch) that loads `QuirkPhysics/Quirks` from `/work/plugin/libQuirkDDG4.so`. The geometry is the tracker-only ODD v6 setup of the drifting-beamspot campaign: `OpenDataDetectorDefs.xml`, `OpenDataDetectorTracker.xml` and `/workspace/configs_production/drift_beamspot/geometry/tracker_fields_plugins.xml`. The last file holds the field and plugin blocks that the tracker file lacks. Without it ddsim crashes. The plugin is single-threaded, so the stage uses one core (`threads: 1`, `single_thread: true`). Vertex smearing in this stage is zero.
+**Stage 1.** quirk-gen puts every event at the origin. Both variants smear vertices with a Gaussian beam spot: 12.5 um in x and y, 55.5 mm in z, 0.185 ns in t. For mu > 0, `pythia_generation` has `hard_process` unset and `merge: true`, and gets the run's converted file with `--hard-scatter-file`. Each run generates its own Pythia8 SoftQCD events and merges a Poisson number of them (mean `pileup`) into each quirk event, as production does.
 
-**Stage 3.** ACTS geometric digitisation with native parquet output (`output_parquet_arrow`), 8 threads. Seeding, CKF and truth tracking assume helices. The `reco/tracks` and `reco/truth_tracks` tables are not meaningful for quirks. Use `tracker_simhits` and `tracker_hits` (with `particle_ids` truth links).
+**Stage 2.** The `simulation` stage has a `user_physics` block (from the `feat/user-physics-plugin` branch) that loads `QuirkPhysics/Quirks` from `/work/plugin/libQuirkDDG4.so`. The geometry is the tracker-only ODD v6 setup of the drifting-beamspot campaign: `OpenDataDetectorDefs.xml`, `OpenDataDetectorTracker.xml` and `/workspace/configs_production/drift_beamspot/geometry/tracker_fields_plugins.xml`. The last file holds the field and plugin blocks that the tracker file lacks. Without it ddsim crashes. Geant4 runs `sim_threads` threads, one event per thread, as in production (ttbar uses 8); see "Multi-threaded simulation" below. Vertex smearing in this stage is zero.
+
+**Stage 3.** ACTS geometric digitisation with native parquet output (`output_parquet_arrow`), `digi_threads` threads. Seeding, CKF and truth tracking assume helices. The `reco/tracks` and `reco/truth_tracks` tables are not meaningful for quirks. Use `tracker_simhits` and `tracker_hits` (with `particle_ids` truth links).
+
+**Packaging.** Production's `package_native_parquet.py`, unchanged, joins the per-run parquet of runs 0 to `runs - 1` (it refuses gaps) into `parquet/truth/{particles,tracker_simhits}` and `parquet/reco/{tracker_hits,tracks,truth_tracks}`, in files of `chunk_size` events named `quirks.<dataset>.<version>.<group>.<object>.events<A>-<B>.parquet`. It numbers events over the sample (`event_id = run * events_per_run + local event`, no run column) and converts times from mm (c t) to ns. `verify_packaged_parquet.py` then checks event ranges, row counts and that the tables cover the same events.
 
 ## Output layout and reading it
 
-Everything is in `<work_dir>/runs/<dataset>/`: `events.json`, `events.hepmc`, `events_hepmc2.hepmc`, `merged_events.hepmc3`, `edm4hep.root`, and one directory per parquet table (`tracker_hits/`, `tracker_simhits/`, `particles/`, and others). This is the per-run layout.
+Each run directory has `events.json`, `events.hepmc`, `events_hepmc2.hepmc`, `merged_events.hepmc3`, `edm4hep.root`, and one directory per parquet table (`tracker_hits/`, `tracker_simhits/`, `particles/`, and others). Nothing is deleted. The packaged dataset is in `<work_dir>/quirks/<dataset>/<version>/parquet/`.
 
-`ml/quirk_loader.py` reads it:
+`ml/quirk_loader.py` reads either:
 
 ```python
 from quirk_loader import QuirkDataset
-ds = QuirkDataset("<work_dir>/runs/<dataset>")
-ev = ds.event(0)     # dict of DataFrames: hits, particles, truth_edges
+ds = QuirkDataset("<work_dir>/quirks/<dataset>/<version>/parquet")    # packaged
+ds = QuirkDataset("<work_dir>/quirks/<dataset>/<version>/runs/0")     # one run
+ev = ds.event(ds.event_ids[0])     # dict of DataFrames: hits, particles, truth_edges
 ```
 
-It also reads a packaged layout (`truth/` and `reco/` subdirectories) if the root has `reco/`. The per-run files store times as c*t in mm. For the per-run layout the loader divides `particles.time` and `tracker_simhits.true_time` by 299.792458 mm/ns, so `t` in the output is in ns. Hit time `t` is the true time of the hit's first sim hit: the digitisation writes no reco time. `truth_edges` pairs consecutive hits of each quirk in true time.
+The per-run files store times as c*t in mm; for them the loader divides `particles.time` and `tracker_simhits.true_time` by 299.792458 mm/ns, so `t` in the output is in ns either way. Hit time `t` is the true time of the hit's first sim hit: the digitisation writes no reco time. `truth_edges` pairs consecutive hits of each quirk in true time.
+
+## Multi-threaded simulation
+
+Geant4 shares particle definitions between its worker threads, while QuirkDDG4 (ported from Athena) kept each quirk pair's string on the quirk's particle definition, and installed its stacking action on the master thread only. The plugin therefore used to run on one thread. Now:
+
+- each thread keeps its own string for each quirk pair (`Quirk::GetStringIn`, a thread-local map), with the string parameters stored on the particle definition;
+- `QuirkPhysics::constructProcess` installs `QuirkStackingAction` and the extra waiting stack on every worker thread (and on the only thread in a single-threaded run);
+- `QuirkStackingAction::PrepareNewEvent` clears the thread's strings, so no event starts with string left over from the previous event on that thread.
+
+Checks, m = 400 GeV, Lambda = 1 keV, mu = 0, in `sw:feat-python-pythia8-hepmc3`:
+
+- One thread, 20 events: identical to the plugin before the change, event by event (hits, quirk hits, hit positions, MC particles).
+- Every worker thread reports the stacking action active on its first quirk (`QuirkStackingAction: first quirk classified on thread N`).
+- 1 against 8 threads, the same 400 generated events: per event, quirk hits 32.49 against 32.42 (paired difference -0.07 +- 0.16), largest quirk hit radius 677.4 against 677.0 mm (-0.4 +- 0.5), all hits 4251 against 4262 (11 +- 22), MC particles 2279 against 2272 (-7 +- 8). Wall time 2095 s against 369 s.
+- Events are not identical one by one between thread counts, but neither are they without the plugin: plain ddsim on 40 minimum-bias events gave 11 of 40 identical between 1 and 4 threads. This is Geant4's multi-threaded random-number handling, also present in production.
+
+The `QUIRK_DUMP_FILE`, `QUIRK_STEPCHECK_FILE` and step-dump diagnostics write one file from all threads, so use them with one thread (`sim/run_quirk_ddsim.py` runs one).
 
 ## colliderml-production branches
 

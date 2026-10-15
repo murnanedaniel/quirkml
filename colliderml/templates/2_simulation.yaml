@@ -1,9 +1,9 @@
 # Quirk sample, stage 2: Geant4 on ODD v6 (tracker only) with the QuirkDDG4 plugin (user_physics).
 dataset: "{DATASET}"
 stage: "simulation"
-events: {EVENTS}
-threads: 1                            # QuirkDDG4 is single-threaded (shared string state)
-seed: {SEED_SIM}
+events: {EVENTS_PER_RUN}
+threads: {SIM_THREADS}                # Geant4 threads, one event per thread
+# seed: given per run on the command line, <dataset>_<version>_run<N> (colliderml/run_stage.sh)
 input_filename: merged_events.hepmc3
 minimalKineticEnergy: 0.1
 truthParticleHandler: "Geant4FullTruthParticleHandler"
@@ -18,7 +18,6 @@ filter_g4_warnings: true
 user_physics:
   - type: QuirkPhysics/Quirks
     library: /work/plugin/libQuirkDDG4.so
-    single_thread: true
     properties:                       # values from quirk-gen's events.json
       Mass: {MASS_MEV}                  # MeV  (mass_gev x 1000)
       Charge: {CHARGE}                     # quirk-gen: +10000100 has charge +1

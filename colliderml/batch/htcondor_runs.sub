@@ -1,0 +1,16 @@
+# Example: HTCondor, one job per run for one stage. Edit the paths and resources for your site;
+# submit one stage at a time, each after the previous has finished:
+#   condor_submit colliderml/batch/htcondor_runs.sub cfg=<config_dir> stage=simulation runs=16
+# The jobs need the container runtime and a shared file system with <work_dir> on it.
+# request_cpus = the stage's threads (sim_threads, digi_threads; 1 for stage1). Generation: run
+# "run_stage.sh <config_dir> generation --run-list 0" once first, to build the MadGraph process.
+quirkml      = $ENV(HOME)/quirkml
+executable   = /bin/bash
+arguments    = $(quirkml)/colliderml/run_stage.sh $(cfg) $(stage) --run-list $(Process)
+request_cpus = 8
+request_memory = 16 GB
+output       = quirks_$(stage)_$(Process).out
+error        = quirks_$(stage)_$(Process).err
+log          = quirks_$(stage).log
+getenv       = True
+queue $(runs)
