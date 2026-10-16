@@ -1,0 +1,14 @@
+This directory is a copy of packages/tracking_core/src/tracking_core from the ML-Tracking-Review repository
+(Copyright (c) 2026 Daniel Murnane, MIT licence, see LICENSE), taken on 2026-10-16. Copied modules: __init__,
+cli, colliderml_readers, eval, histogram_counts, schema, summary. Not copied: io, physics, report, report_inputs.
+
+Changes for the quirk tracking pilot:
+- summary.SELECTIONS: added "quirk" and "all".
+- eval.selection_cuts: the "quirk" selection (mass > 10 GeV, charged, primary, >= 3 measurements, no pT / eta /
+  prompt cut) and the "all" selection (no cut); for both, a wide eta axis (|eta| < 10) and EffPlotTool minTruthPt 0.
+- eval.selection_cuts: the "technical_sm" selection (technical without |pdg| 10000100, ParticleSelector
+  excludeAbsPdgs).
+- eval: DEFAULT_SELECTIONS keeps the original three as the default; `samples` chooses the scored samples;
+  `per_event_selections` records per-event ACTS efficiency counts (PerEventProbe); `predictions_df` passes an
+  already-filtered predictions frame. _run_perf_writers returns a fifth element, per_event; the bundle holds it.
+- schema.read_predictions_meta; colliderml_readers.make_prediction_reader splits the predictions by event once.
