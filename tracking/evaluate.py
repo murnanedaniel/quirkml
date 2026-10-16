@@ -139,24 +139,36 @@ def merge_bundles(bundles: list[dict]) -> dict:
 
 
 def python_matching(hits: pl.DataFrame, preds: pl.DataFrame, ratio: float, double: bool) -> pl.DataFrame:
-    """TrackTruthMatcher's rule on (event_id, hit_id, particle_id) hits and predictions: per track, the majority
-    particle; the track matches it if purity (majority hits / track hits) >= ratio and, with double matching,
-    completeness (majority hits / the particle's hits) >= ratio. Returns (event_id, particle_id, matched_tracks,
-    tied) for every particle that is the majority particle of a track."""
+    """TrackTruthMatcher's rule on (event_id, hit_id, particle_id) hits and predictions, rows in prototrack order.
+
+    Per track, the majority particle; the track matches it if purity (majority hits / track hits) >= ratio and, with
+    double matching, completeness (majority hits / the particle's hits) >= ratio. Ties in the majority count follow
+    ACTS (Validation/TrackClassification): the contributing particles are collected in the order of
+    trackStatesReversed(), i.e. from the last hit of the prototrack (= last predictions row of the track) backwards,
+    then sorted by hit count with std::sort. For up to 16 distinct particles std::sort is an insertion sort, which
+    keeps that order, so the tied particle whose last hit comes latest wins. Above 16 the order of ties is not
+    defined; such ties are counted in `tied_unordered`.
+
+    Returns (event_id, particle_id, matched_tracks, tied, tied_unordered) for every particle that is the majority
+    particle of a track."""
     particle_hits = hits.group_by("event_id", "particle_id").agg(pl.len().alias("particle_hits"))
-    assigned = preds.filter(pl.col("predicted_track_id") >= 0).join(hits, on=["event_id", "hit_id"], how="left")
+    assigned = (preds.with_row_index("row").filter(pl.col("predicted_track_id") >= 0)
+                .join(hits, on=["event_id", "hit_id"], how="left"))
     if assigned["particle_id"].null_count():
         raise ValueError("predictions hold hit_ids outside the events' hits")
-    counts = assigned.group_by("event_id", "predicted_track_id", "particle_id").agg(pl.len().alias("n"))
-    per_track = counts.group_by("event_id", "predicted_track_id").agg(
-        pl.col("n").sum().alias("track_hits"), pl.col("n").max().alias("n_major"),
-        (pl.col("n") == pl.col("n").max()).sum().alias("n_at_max"),
-        pl.col("particle_id").sort_by("n", descending=True).first().alias("particle_id"))
+    counts = assigned.group_by("event_id", "predicted_track_id", "particle_id").agg(
+        pl.len().alias("n"), pl.col("row").max().alias("last_row"))
+    per_track = counts.sort(["n", "last_row"], descending=[True, True]).group_by(
+        "event_id", "predicted_track_id", maintain_order=True).agg(
+        pl.col("n").sum().alias("track_hits"), pl.col("n").first().alias("n_major"),
+        (pl.col("n") == pl.col("n").max()).sum().alias("n_at_max"), pl.len().alias("n_particles"),
+        pl.col("particle_id").first().alias("particle_id"))
     per_track = per_track.join(particle_hits, on=["event_id", "particle_id"], how="left").with_columns(
         matched=(pl.col("n_major") / pl.col("track_hits") >= ratio)
         & (~pl.lit(double) | (pl.col("n_major") / pl.col("particle_hits") >= ratio)))
     return per_track.group_by("event_id", "particle_id").agg(
-        pl.col("matched").sum().alias("matched_tracks"), (pl.col("n_at_max") > 1).any().alias("tied"))
+        pl.col("matched").sum().alias("matched_tracks"), (pl.col("n_at_max") > 1).any().alias("tied"),
+        ((pl.col("n_at_max") > 1) & (pl.col("n_particles") > 16)).any().alias("tied_unordered"))
 
 
 # Section: summary
@@ -357,6 +369,7 @@ def main(argv=None):
             "python_equals_acts_per_event": py_counts == acts_counts,
             "events_differing": [e for e, a, b in zip(range(first, stop), acts_counts, py_counts) if a != b][:20],
             "python_majority_ties_on_quirk_tracks": int(q_matched["tied"].sum()),
+            "python_ties_with_undefined_order": int(q_matched["tied_unordered"].sum()),
         }
         for sel in ("technical", "technical_sm", "all"):
             lv = _level(sel, point)
