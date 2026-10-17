@@ -1,0 +1,741 @@
+{
+ "evd_regimes": {
+  "values": {
+   "m175_L100_mu0": {
+    "event_id": 49,
+    "quirk_plus_hits": 13,
+    "quirk_minus_hits": 13,
+    "all_hits": 5576,
+    "shared_quirk_hits": 0,
+    "p75_min_quirk_hits": 13.0
+   },
+   "m175_L774_mu0": {
+    "event_id": 19,
+    "quirk_plus_hits": 14,
+    "quirk_minus_hits": 14,
+    "all_hits": 1347,
+    "shared_quirk_hits": 0,
+    "p75_min_quirk_hits": 14.0
+   },
+   "m175_L10000_mu0": {
+    "event_id": 32,
+    "quirk_plus_hits": 12,
+    "quirk_minus_hits": 12,
+    "all_hits": 1589,
+    "shared_quirk_hits": 5,
+    "p75_min_quirk_hits": 12.0
+   },
+   "mass_GeV": 175
+  },
+  "sources": {
+   "m175_L100_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L100_mu0/cost/runs/0",
+   "m175_L774_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L774_mu0/cost/runs/0",
+   "m175_L10000_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L10000_mu0/cost/runs/0"
+  }
+ },
+ "quirk_separation": {
+  "values": {
+   "events": 2985,
+   "quirk_hits_other": 82807,
+   "pairs_same": 76837,
+   "median_nearest_other_quirk_mm": 22.766296786247544,
+   "median_consecutive_same_quirk_mm": 130.37541054576354,
+   "q10_q90_nearest_other_mm": [
+    2.8948132208154678,
+    119.70613707966956
+   ],
+   "q10_q90_consecutive_same_mm": [
+    5.297661903299428,
+    378.352780528712
+   ],
+   "frac_hits_with_other_quirk_closer_than_median_same_step": 0.9131957443211323
+  },
+  "sources": {
+   "hits": "/pscratch/sd/d/danieltm/quirk_pilots/r1/m200_L774_mu0/reco/tracker_hits (events 17000-19999)",
+   "particles": "/pscratch/sd/d/danieltm/quirk_pilots/r1/m200_L774_mu0/truth/particles"
+  }
+ },
+ "evd_interleaved_zoom": {
+  "values": {
+   "event_id": 17039,
+   "quirk_plus_hits": 13,
+   "quirk_minus_hits": 14,
+   "median_nearest_other_quirk_mm": 15.49135578445871
+  },
+  "sources": {
+   "hits": "/pscratch/sd/d/danieltm/quirk_pilots/r1/m200_L774_mu0/reco/tracker_hits",
+   "particles": "/pscratch/sd/d/danieltm/quirk_pilots/r1/m200_L774_mu0/truth/particles"
+  }
+ },
+ "cost_vs_lambda": {
+  "values": {
+   "formula": "core-s/event = (sim_seconds - 40) / 100 * 8",
+   "sim_wall_seconds": {
+    "m175_L100_mu0": 76,
+    "m175_L167_mu0": 76,
+    "m175_L278_mu0": 76,
+    "m300_L100_mu0": 72,
+    "m50_L100_mu0": 71,
+    "m175_L464_mu0": 91,
+    "m175_L774_mu0": 103,
+    "m175_L1292_mu0": 142,
+    "m175_L2154_mu0": 285,
+    "m175_L3594_mu0": 535,
+    "m200_L774_mu60": 690,
+    "m175_L5995_mu0": 1428,
+    "m300_L10000_mu0": 2349,
+    "m175_L10000_mu0": 3753,
+    "m50_L10000_mu0": 5039
+   },
+   "core_s_per_event": {
+    "m175_L100_mu0": 2.88,
+    "m175_L167_mu0": 2.88,
+    "m175_L278_mu0": 2.88,
+    "m300_L100_mu0": 2.56,
+    "m50_L100_mu0": 2.48,
+    "m175_L464_mu0": 4.08,
+    "m175_L774_mu0": 5.04,
+    "m175_L1292_mu0": 8.16,
+    "m175_L2154_mu0": 19.6,
+    "m175_L3594_mu0": 39.6,
+    "m200_L774_mu60": 52.0,
+    "m175_L5995_mu0": 111.04,
+    "m300_L10000_mu0": 184.72,
+    "m175_L10000_mu0": 297.04,
+    "m50_L10000_mu0": 399.92
+   },
+   "ratio_m175_L10000_over_L100": 103.1388888888889
+  },
+  "sources": {
+   "times": "/pscratch/sd/d/danieltm/quirk_pilots/cost/times.txt"
+  }
+ },
+ "quirk_hits_per_event": {
+  "values": {
+   "mu0": {
+    "events": 4000,
+    "quirks": 8000,
+    "mean_quirk_hits_per_event": 30.0515,
+    "sem": 0.23954734953797271,
+    "median": 27.0,
+    "events_with_zero_quirk_hits": 12,
+    "per_run_mean": {
+     "0": 30.222,
+     "1": 31.942,
+     "2": 29.662,
+     "3": 29.452,
+     "4": 29.696,
+     "5": 30.566,
+     "6": 28.91,
+     "7": 29.962
+    },
+    "per_run_sem": {
+     "0": 0.617,
+     "1": 0.804,
+     "2": 0.544,
+     "3": 0.711,
+     "4": 0.629,
+     "5": 0.71,
+     "6": 0.542,
+     "7": 0.804
+    }
+   },
+   "mu10": {
+    "events": 4000,
+    "quirks": 8000,
+    "mean_quirk_hits_per_event": 30.18625,
+    "sem": 0.2579855216222738,
+    "median": 27.0,
+    "events_with_zero_quirk_hits": 8,
+    "per_run_mean": {
+     "0": 30.092,
+     "1": 29.972,
+     "2": 29.442,
+     "3": 29.924,
+     "4": 31.578,
+     "5": 28.978,
+     "6": 30.89,
+     "7": 30.614
+    },
+    "per_run_sem": {
+     "0": 0.649,
+     "1": 0.661,
+     "2": 0.724,
+     "3": 0.66,
+     "4": 1.03,
+     "5": 0.501,
+     "6": 0.819,
+     "7": 0.675
+    }
+   },
+   "difference_mu10_minus_mu0": [
+    0.13475000000000037,
+    0.3520503686085052
+   ]
+  },
+  "sources": {
+   "mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m400_L1000_mu0/v1/parquet",
+   "mu10": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m400_L1000_mu10/v1/parquet"
+  }
+ },
+ "hits_per_event": {
+  "values": {
+   "mu0": {
+    "events": 4000,
+    "mean": 3994.28375,
+    "median": 3873.5,
+    "q10_q90": [
+     1916.7,
+     6159.299999999999
+    ],
+    "min": 584,
+    "max": 10526
+   },
+   "mu10": {
+    "events": 4000,
+    "mean": 14671.94825,
+    "median": 14082.5,
+    "q10_q90": [
+     7802.7,
+     21940.3
+    ],
+    "min": 2235,
+    "max": 38986
+   },
+   "ratio_median_mu10_over_mu0": 3.6356008777591327
+  },
+  "sources": {
+   "mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m400_L1000_mu0/v1/parquet/reco/tracker_hits",
+   "mu10": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m400_L1000_mu10/v1/parquet/reco/tracker_hits"
+  }
+ },
+ "mt_validation": {
+  "values": {
+   "events": 400,
+   "mean_quirk_hits_t1": 32.49,
+   "mean_quirk_hits_t8": 32.425,
+   "paired_diff_mean": -0.065,
+   "paired_diff_sem": 0.16284419879967102,
+   "frac_events_identical": 0.48,
+   "wall_s_t1": 2095,
+   "wall_s_t8": 369,
+   "speedup": 5.677506775067751
+  },
+  "sources": {
+   "edm4hep_t1": "/pscratch/sd/d/danieltm/qml_img/quirks/mt_test/big_t1/edm4hep.root",
+   "edm4hep_t8": "/pscratch/sd/d/danieltm/qml_img/quirks/mt_test/big_t8/edm4hep.root",
+   "wall": "/pscratch/sd/d/danieltm/qml_img/quirks/mt_test/run_big.out",
+   "logic": "/pscratch/sd/d/danieltm/qml_img/scripts/mt_stats.py"
+  }
+ },
+ "pilot_stage_times": {
+  "values": {
+   "mu0": {
+    "generation": 1.7,
+    "stage1": 0.33,
+    "simulation": 7.3,
+    "digitization": 1.0,
+    "package": 0.57,
+    "total": 10.9
+   },
+   "mu10": {
+    "generation": 1.6,
+    "stage1": 0.9,
+    "simulation": 14.2,
+    "digitization": 2.0,
+    "package": 1.2,
+    "total": 19.9
+   }
+  },
+  "sources": {
+   "all": "talk brief (pilot logs /pscratch/sd/d/danieltm/quirk_pilots/pilot_gen.out, pilot_pu10.out)"
+  }
+ },
+ "quirk_hits_vs_lambda": {
+  "values": {
+   "m175_L100": {
+    "quirks": 200,
+    "mean_hits_per_quirk": 13.21,
+    "sem": 0.2185596982715311,
+    "frac_ge3": 0.99,
+    "median": 13.0
+   },
+   "m175_L167": {
+    "quirks": 200,
+    "mean_hits_per_quirk": 13.575,
+    "sem": 0.26922907807740987,
+    "frac_ge3": 0.995,
+    "median": 13.0
+   },
+   "m175_L278": {
+    "quirks": 200,
+    "mean_hits_per_quirk": 13.485,
+    "sem": 0.33302160884813314,
+    "frac_ge3": 0.985,
+    "median": 13.0
+   },
+   "m175_L464": {
+    "quirks": 200,
+    "mean_hits_per_quirk": 13.795,
+    "sem": 0.32887026813978126,
+    "frac_ge3": 0.99,
+    "median": 13.0
+   },
+   "m175_L774": {
+    "quirks": 200,
+    "mean_hits_per_quirk": 13.485,
+    "sem": 0.23101018054966305,
+    "frac_ge3": 1.0,
+    "median": 13.0
+   },
+   "m175_L1292": {
+    "quirks": 200,
+    "mean_hits_per_quirk": 13.24,
+    "sem": 0.2974970968145157,
+    "frac_ge3": 0.995,
+    "median": 13.0
+   },
+   "m175_L2154": {
+    "quirks": 200,
+    "mean_hits_per_quirk": 13.455,
+    "sem": 0.2562581044189666,
+    "frac_ge3": 0.98,
+    "median": 13.0
+   },
+   "m175_L3594": {
+    "quirks": 200,
+    "mean_hits_per_quirk": 12.475,
+    "sem": 0.22925896572835308,
+    "frac_ge3": 0.985,
+    "median": 13.0
+   },
+   "m175_L5995": {
+    "quirks": 200,
+    "mean_hits_per_quirk": 11.675,
+    "sem": 0.20787722265436506,
+    "frac_ge3": 0.98,
+    "median": 12.0
+   },
+   "m175_L10000": {
+    "quirks": 200,
+    "mean_hits_per_quirk": 10.89,
+    "sem": 0.2223436156427376,
+    "frac_ge3": 0.96,
+    "median": 11.0
+   },
+   "m50_L100": {
+    "quirks": 200,
+    "mean_hits_per_quirk": 12.945,
+    "sem": 0.20669661937804293,
+    "frac_ge3": 0.99,
+    "median": 13.0
+   },
+   "m50_L10000": {
+    "quirks": 200,
+    "mean_hits_per_quirk": 10.505,
+    "sem": 0.1673015962882692,
+    "frac_ge3": 1.0,
+    "median": 11.0
+   },
+   "m300_L100": {
+    "quirks": 200,
+    "mean_hits_per_quirk": 13.7,
+    "sem": 0.24627883857866936,
+    "frac_ge3": 0.99,
+    "median": 13.0
+   },
+   "m300_L10000": {
+    "quirks": 200,
+    "mean_hits_per_quirk": 11.465,
+    "sem": 0.20750703808370297,
+    "frac_ge3": 0.985,
+    "median": 12.0
+   }
+  },
+  "sources": {
+   "m175_L100_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L100_mu0/cost/runs/0",
+   "m175_L167_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L167_mu0/cost/runs/0",
+   "m175_L278_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L278_mu0/cost/runs/0",
+   "m175_L464_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L464_mu0/cost/runs/0",
+   "m175_L774_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L774_mu0/cost/runs/0",
+   "m175_L1292_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L1292_mu0/cost/runs/0",
+   "m175_L2154_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L2154_mu0/cost/runs/0",
+   "m175_L3594_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L3594_mu0/cost/runs/0",
+   "m175_L5995_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L5995_mu0/cost/runs/0",
+   "m175_L10000_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L10000_mu0/cost/runs/0",
+   "m50_L100_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m50_L100_mu0/cost/runs/0",
+   "m50_L10000_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m50_L10000_mu0/cost/runs/0",
+   "m300_L100_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m300_L100_mu0/cost/runs/0",
+   "m300_L10000_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m300_L10000_mu0/cost/runs/0"
+  }
+ },
+ "gnn_eff_vs_fake": {
+  "values": {
+   "v1/test200/eval_stitch0.7_mh3": {
+    "eff_vl": 0.59,
+    "err_vl": 0.024591665254715876,
+    "eff_t": 0.045,
+    "err_t": 0.01036520622081394,
+    "fake": 0.2213567741180448,
+    "events": [
+     17000,
+     17200
+    ],
+    "min_hits": 3,
+    "method": "ccwalk_stitch",
+    "event_eff_vl": 0.435,
+    "tech_eff_vl": 0.9420544337137841
+   },
+   "v1/test200/eval_stitch0.7_mh4": {
+    "eff_vl": 0.59,
+    "err_vl": 0.024591665254715876,
+    "eff_t": 0.045,
+    "err_t": 0.01036520622081394,
+    "fake": 0.19276623647581295,
+    "events": [
+     17000,
+     17200
+    ],
+    "min_hits": 4,
+    "method": "ccwalk_stitch",
+    "event_eff_vl": 0.435,
+    "tech_eff_vl": 0.9420544337137841
+   },
+   "v1/test200/eval_stitch0.7_mh5": {
+    "eff_vl": 0.5875,
+    "err_vl": 0.02461421083439402,
+    "eff_t": 0.045,
+    "err_t": 0.01036520622081394,
+    "fake": 0.17279832895357455,
+    "events": [
+     17000,
+     17200
+    ],
+    "min_hits": 5,
+    "method": "ccwalk_stitch",
+    "event_eff_vl": 0.43,
+    "tech_eff_vl": 0.9420544337137841
+   },
+   "v1/test200/eval_stitch0.7_mh6": {
+    "eff_vl": 0.58,
+    "err_vl": 0.024677925358506134,
+    "eff_t": 0.045,
+    "err_t": 0.01036520622081394,
+    "fake": 0.15321039019453503,
+    "events": [
+     17000,
+     17200
+    ],
+    "min_hits": 6,
+    "method": "ccwalk_stitch",
+    "event_eff_vl": 0.42,
+    "tech_eff_vl": 0.9414691249634182
+   },
+   "v1/eval_ccwalk": {
+    "eff_vl": 0.5975,
+    "err_vl": 0.024520081056146614,
+    "eff_t": 0.045,
+    "err_t": 0.01036520622081394,
+    "fake": 0.30727582359504374,
+    "events": [
+     17000,
+     17200
+    ],
+    "min_hits": 3,
+    "method": "ccwalk",
+    "event_eff_vl": 0.45,
+    "tech_eff_vl": 0.9438103599648815
+   },
+   "v1/test200/eval_ccwalk_mh4": {
+    "eff_vl": 0.5975,
+    "err_vl": 0.024520081056146614,
+    "eff_t": 0.045,
+    "err_t": 0.01036520622081394,
+    "fake": 0.2689744615681784,
+    "events": [
+     17000,
+     17200
+    ],
+    "min_hits": 4,
+    "method": "ccwalk",
+    "event_eff_vl": 0.45,
+    "tech_eff_vl": 0.9438103599648815
+   },
+   "v1/test200/eval_ccwalk_mh5": {
+    "eff_vl": 0.595,
+    "err_vl": 0.024544602257930356,
+    "eff_t": 0.045,
+    "err_t": 0.01036520622081394,
+    "fake": 0.2378263712777326,
+    "events": [
+     17000,
+     17200
+    ],
+    "min_hits": 5,
+    "method": "ccwalk",
+    "event_eff_vl": 0.445,
+    "tech_eff_vl": 0.9438103599648815
+   },
+   "v2/test_node_edge/eval_stitch0.7_mh3": {
+    "eff_vl": 0.728950016772895,
+    "err_vl": 0.0057567528105509705,
+    "eff_t": 0.06927205635692721,
+    "err_t": 0.003288474137724064,
+    "fake": 0.12525030054088349,
+    "events": [
+     17000,
+     20000
+    ],
+    "min_hits": 3,
+    "method": "ccwalk_stitch",
+    "event_eff_vl": 0.5755129498822737,
+    "tech_eff_vl": 0.9647736125097376
+   },
+   "v2/test_node_edge/eval_stitch0.7_mh4": {
+    "eff_vl": 0.7250922509225092,
+    "err_vl": 0.005782213682017897,
+    "eff_t": 0.06860114055686012,
+    "err_t": 0.003273689859890788,
+    "fake": 0.10644602824297039,
+    "events": [
+     17000,
+     20000
+    ],
+    "min_hits": 4,
+    "method": "ccwalk_stitch",
+    "event_eff_vl": 0.5701311806256307,
+    "tech_eff_vl": 0.9647736125097376
+   },
+   "v2/test_node_edge/eval_stitch0.7_mh5": {
+    "eff_vl": 0.7170412613217041,
+    "err_vl": 0.005833613382768136,
+    "eff_t": 0.06725930895672592,
+    "err_t": 0.003243849347658353,
+    "fake": 0.0944936312693176,
+    "events": [
+     17000,
+     20000
+    ],
+    "min_hits": 5,
+    "method": "ccwalk_stitch",
+    "event_eff_vl": 0.5590312815338042,
+    "tech_eff_vl": 0.9646406110467215
+   },
+   "v2/test_node_edge/eval_stitch0.7_mh6": {
+    "eff_vl": 0.7066420664206642,
+    "err_vl": 0.005896613694909187,
+    "eff_t": 0.06491110365649111,
+    "err_t": 0.003190729303023157,
+    "fake": 0.08280953428008907,
+    "events": [
+     17000,
+     20000
+    ],
+    "min_hits": 6,
+    "method": "ccwalk_stitch",
+    "event_eff_vl": 0.5462495795492768,
+    "tech_eff_vl": 0.963975603731641
+   },
+   "v2/test_node_edge/eval_ccwalk": {
+    "eff_vl": 0.7277759141227776,
+    "err_vl": 0.005764559516410398,
+    "eff_t": 0.06927205635692721,
+    "err_t": 0.003288474137724064,
+    "fake": 0.24611634174762834,
+    "events": [
+     17000,
+     20000
+    ],
+    "min_hits": 3,
+    "method": "ccwalk",
+    "event_eff_vl": 0.5785401950891356,
+    "tech_eff_vl": 0.9652866181527997
+   },
+   "v2/test_node_edge/eval_ccwalk_mh5": {
+    "eff_vl": 0.71569942972157,
+    "err_vl": 0.00584195510534212,
+    "eff_t": 0.06725930895672592,
+    "err_t": 0.003243849347658353,
+    "fake": 0.1911051327133688,
+    "events": [
+     17000,
+     20000
+    ],
+    "min_hits": 5,
+    "method": "ccwalk",
+    "event_eff_vl": 0.5617221661621258,
+    "tech_eff_vl": 0.9651536166897836
+   },
+   "v2/test_node_edge/eval200_stitch0.7_mh5": {
+    "eff_vl": 0.745,
+    "err_vl": 0.02179306082219751,
+    "eff_t": 0.065,
+    "err_t": 0.01232629303562105,
+    "fake": 0.0947080447978114,
+    "events": [
+     17000,
+     17200
+    ],
+    "min_hits": 5,
+    "method": "ccwalk_stitch",
+    "event_eff_vl": 0.6,
+    "tech_eff_vl": 0.9663447468539654
+   },
+   "v2/test_node_edge/eval200_ccwalk": {
+    "eff_vl": 0.735,
+    "err_vl": 0.02206666037260736,
+    "eff_t": 0.0675,
+    "err_t": 0.0125442965127583,
+    "fake": 0.250602466569012,
+    "events": [
+     17000,
+     17200
+    ],
+    "min_hits": 3,
+    "method": "ccwalk",
+    "event_eff_vl": 0.605,
+    "tech_eff_vl": 0.9657594381035997
+   }
+  },
+  "sources": {
+   "v1/test200/eval_stitch0.7_mh3": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v1/test200/eval_stitch0.7_mh3/summary.json",
+   "v1/test200/eval_stitch0.7_mh4": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v1/test200/eval_stitch0.7_mh4/summary.json",
+   "v1/test200/eval_stitch0.7_mh5": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v1/test200/eval_stitch0.7_mh5/summary.json",
+   "v1/test200/eval_stitch0.7_mh6": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v1/test200/eval_stitch0.7_mh6/summary.json",
+   "v1/eval_ccwalk": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v1/eval_ccwalk/summary.json",
+   "v1/test200/eval_ccwalk_mh4": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v1/test200/eval_ccwalk_mh4/summary.json",
+   "v1/test200/eval_ccwalk_mh5": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v1/test200/eval_ccwalk_mh5/summary.json",
+   "v2/test_node_edge/eval_stitch0.7_mh3": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v2/test_node_edge/eval_stitch0.7_mh3/summary.json",
+   "v2/test_node_edge/eval_stitch0.7_mh4": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v2/test_node_edge/eval_stitch0.7_mh4/summary.json",
+   "v2/test_node_edge/eval_stitch0.7_mh5": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v2/test_node_edge/eval_stitch0.7_mh5/summary.json",
+   "v2/test_node_edge/eval_stitch0.7_mh6": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v2/test_node_edge/eval_stitch0.7_mh6/summary.json",
+   "v2/test_node_edge/eval_ccwalk": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v2/test_node_edge/eval_ccwalk/summary.json",
+   "v2/test_node_edge/eval_ccwalk_mh5": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v2/test_node_edge/eval_ccwalk_mh5/summary.json",
+   "v2/test_node_edge/eval200_stitch0.7_mh5": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v2/test_node_edge/eval200_stitch0.7_mh5/summary.json",
+   "v2/test_node_edge/eval200_ccwalk": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v2/test_node_edge/eval200_ccwalk/summary.json"
+  }
+ },
+ "gnn_edge_scores": {
+  "values": {
+   "v1": {
+    "events": 200,
+    "edges_per_event": {
+     "same": 25.03,
+     "other_q": 66.19,
+     "true": 3041.955,
+     "false": 71471.685
+    },
+    "frac_score_gt_0.5": {
+     "same": 0.5141829804234919,
+     "other_q": 0.06504003625925367,
+     "true": 0.9099345651069789,
+     "false": 0.007174589489530015
+    }
+   },
+   "v2": {
+    "events": 1000,
+    "edges_per_event": {
+     "same": 24.413,
+     "other_q": 78.382,
+     "true": 3124.178,
+     "false": 50867.833
+    },
+    "frac_score_gt_0.5": {
+     "same": 0.664482038258305,
+     "other_q": 0.048365696205761526,
+     "true": 0.9530564519691259,
+     "false": 0.009141179652767988
+    }
+   }
+  },
+  "sources": {
+   "v1": {
+    "scored": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v1/gnn/scored",
+    "cache": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/cache/m200_L774_mu0",
+    "events": [
+     16000,
+     16199
+    ]
+   },
+   "v2": {
+    "scored": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v2/gnn_node_edge/scored",
+    "cache": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/cache/m200_L774_mu0",
+    "events": [
+     16000,
+     16999
+    ]
+   }
+  }
+ },
+ "edge_funnel": {
+  "values": {
+   "stages": [
+    "metric-learning graph",
+    "filter (score > 0.005)",
+    "GNN (score > 0.1)",
+    "GNN (score > 0.5)"
+   ],
+   "v1": [
+    {
+     "edges_per_event": 310786.94,
+     "eff_quirk": 0.9727801764595457,
+     "eff": 0.9925278557725292,
+     "eff_tech": 0.9998682450237159,
+     "purity": 0.010054589166455965
+    },
+    {
+     "edges_per_event": 74643.545,
+     "eff_quirk": 0.9397409423690632,
+     "eff": 0.9741532099251674,
+     "eff_tech": 0.996584505614789,
+     "purity": 0.041088415615844615
+    },
+    {
+     "edges_per_event": 4535.345,
+     "eff_quirk": 0.8629622676928853,
+     "eff": 0.9450618734833374,
+     "eff_tech": 0.9888210970122026,
+     "purity": 0.656046011935145
+    },
+    {
+     "edges_per_event": 3297.96,
+     "eff_quirk": 0.4824479068894312,
+     "eff": 0.8832217408428515,
+     "eff_tech": 0.9652369562573478,
+     "purity": 0.8431575883273297
+    }
+   ],
+   "v2": [
+    null,
+    {
+     "edges_per_event": 54447.61,
+     "eff_quirk": 0.9375494071146245,
+     "eff": 0.9836899730543471,
+     "eff_tech": 0.9982272266812126,
+     "purity": 0.058265367387108455
+    },
+    {
+     "edges_per_event": 4214.815,
+     "eff_quirk": 0.8958137788623991,
+     "eff": 0.9699605508899871,
+     "eff_tech": 0.9940710260672153,
+     "purity": 0.7245359523490355
+    },
+    {
+     "edges_per_event": 3399.36,
+     "eff_quirk": 0.622113760090107,
+     "eff": 0.9350630169358015,
+     "eff_tech": 0.9809766084242105,
+     "purity": 0.8660203685399605
+    }
+   ]
+  },
+  "sources": {
+   "v1_graph": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/logs/v1_graph.log (events 16000-16199)",
+   "v1_filter": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/logs/v1_filt_apply.log (events 16000-16199)",
+   "v1_gnn": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v1/gnn/cut_scan.json",
+   "v2_filter": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v2/filter/cut_scan.json (n_val 100)",
+   "v2_gnn": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/main/v2/gnn_node_edge/cut_scan.json"
+  }
+ }
+}
