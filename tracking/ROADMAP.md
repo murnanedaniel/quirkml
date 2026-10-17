@@ -74,3 +74,8 @@ Total about 400 node-hours, leaving margin for retries and a later second pass. 
 - Cluster direction columns (local_eta, local_phi, eta_angle, ...) are all zero in the parquet: find where the
   ACTS writer leaves them empty; report before changing anything.
 - MaskFormer and edge-geo memory/throughput with mu 60 events.
+- About 1% of simulation runs (500 events each) stop with a fatal Geant4 error (em0033,
+  G4MuPairProductionModel::DataCorrupted) in the hadron pair-production process the plugin gives quirks
+  (EnableEM). Seen so far only in multi-threaded runs. Production retries failed runs once; physics unchanged
+  mid-production. Question for Daniel: drop pair production for quirks (negligible for slow heavy quirks?) in a
+  later version, or find the cause.
