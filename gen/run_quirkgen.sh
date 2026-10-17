@@ -27,6 +27,7 @@ EL9_IMAGE=registry.cern.ch/atlasadc/atlas-grid-almalinux9:latest
 CFG=$(cd "${1:?usage: bash gen/run_quirkgen.sh <config_dir> init|<run>}" && pwd)
 RUN=${2:?usage: bash gen/run_quirkgen.sh <config_dir> init|<run>}
 source "$CFG/sample.env"
+OUTPUT_BASE=${OUTPUT_BASE:-$WORK_DIR}
 QUIRKML=$(cd "$(dirname "$0")/.." && pwd)
 GEN=$WORK_DIR/quirkgen
 CORES=${QUIRKGEN_CORES:-$SIM_THREADS}
@@ -37,20 +38,20 @@ s = abs(int.from_bytes(hashlib.md5(sys.argv[1].encode()).digest()[:4], "big", si
 print(s or 1)' "${DATASET}_${VERSION}_run$1"
 }
 
-# args for gen/quirkgen_run.sh, with paths under the given work-dir mount point
-qg_args() {   # qg_args <work_dir as seen by the environment> <quirkml dir as seen> <route>
-  local w=$1 q=$2 proc=$1/quirkgen/procdir_$3
+# args for gen/quirkgen_run.sh, with paths as the chosen environment sees them
+qg_args() {   # qg_args <work_dir as seen> <output_base_dir as seen> <quirkml dir as seen> <route>
+  local w=$1 d=$2 q=$3 proc=$1/quirkgen/procdir_$4
   if [ "$RUN" = init ]; then
     echo "init $w/quirkgen/quirk-gen $proc $MASS_GEV"
   else
-    echo "run $w/quirkgen/quirk-gen $proc $w/$RUNS_DIR/$RUN $MASS_GEV $LAMBDA_EV $EVENTS_PER_RUN $(seed_of "$RUN") $CORES $q/colliderml/convert_to_hepmc2.py"
+    echo "run $w/quirkgen/quirk-gen $proc $d/$RUNS_DIR/$RUN $MASS_GEV $LAMBDA_EV $EVENTS_PER_RUN $(seed_of "$RUN") $CORES $q/colliderml/convert_to_hepmc2.py"
   fi
 }
 
 # Inside the LCG environment (second pass of route 2).
 if [ "${3:-}" = "--inside-lcg" ]; then
   source "$LCG_VIEW/setup.sh" >/dev/null
-  bash "$QUIRKML/gen/quirkgen_run.sh" $(qg_args "$WORK_DIR" "$QUIRKML" lcg)
+  bash "$QUIRKML/gen/quirkgen_run.sh" $(qg_args "$WORK_DIR" "$OUTPUT_BASE" "$QUIRKML" lcg)
   exit 0
 fi
 
@@ -62,10 +63,10 @@ fi
 
 # Route 1: the ODD image. Its spack tree has MadGraph; when pythia8 and hepmc3 are built with +python,
 # their modules are in the spack tree but not on the image's PYTHONPATH, so add them.
-source "$QUIRKML/colliderml/container.sh" "$WORK_DIR"
+source "$QUIRKML/colliderml/container.sh" "$WORK_DIR" "$OUTPUT_BASE"
 SPACK_PY='S=/spack/opt/spack/linux-x86_64; export PYTHONPATH=$(ls -d $S/pythia8-*/lib $S/hepmc3-*/lib/python3*/site-packages 2>/dev/null | tr "\n" :)$PYTHONPATH;'
 if [ "${QUIRKGEN_ENV:-}" != "lcg" ] && qml_run "$SPACK_PY python3 -c 'import pythia8, pyHepMC3'" >/dev/null 2>&1; then
-  qml_run "$SPACK_PY bash /quirkml/gen/quirkgen_run.sh $(qg_args /work /quirkml image)"
+  qml_run "$SPACK_PY bash /quirkml/gen/quirkgen_run.sh $(qg_args /work /data /quirkml image)"
   exit 0
 fi
 [ "${QUIRKGEN_ENV:-}" = "image" ] && { echo "$QUIRKML_IMAGE has no Pythia8/HepMC3 python bindings" >&2; exit 1; }
@@ -83,7 +84,7 @@ if [ "$VIA" = direct ]; then
 elif [ "$VIA" = shifter ]; then
   shifter --image=$EL9_IMAGE --module=cvmfs /bin/bash "$0" "$CFG" "$RUN" --inside-lcg
 elif [ "$VIA" = apptainer ]; then
-  "$QML_RT" exec -B /cvmfs -B "$WORK_DIR" -B "$QUIRKML" "docker://$EL9_IMAGE" /bin/bash "$0" "$CFG" "$RUN" --inside-lcg
+  "$QML_RT" exec -B /cvmfs -B "$WORK_DIR" -B "$OUTPUT_BASE" -B "$QUIRKML" "docker://$EL9_IMAGE" /bin/bash "$0" "$CFG" "$RUN" --inside-lcg
 else
   echo "the LCG view needs an el9 host, shifter or Apptainer" >&2; exit 1
 fi

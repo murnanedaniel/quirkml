@@ -7,8 +7,8 @@ campaign: "{CAMPAIGN}"
 dataset: "{DATASET}"
 version: "{VERSION}"
 stage: "package_parquet"
-input_base_dir: /work
-output_base_dir: /work
+input_base_dir: /data                  # output_base_dir of the settings file
+output_base_dir: /data
 run_size: {EVENTS_PER_RUN}
 chunk_size: {CHUNK_SIZE}
 objects:

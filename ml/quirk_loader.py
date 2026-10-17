@@ -10,8 +10,8 @@ Per event:
             inwards; time order follows the trajectory.
 
     from quirk_loader import QuirkDataset
-    ds = QuirkDataset("<work_dir>/quirks/<dataset>/<version>/parquet")   # packaged (docs/tutorial.md)
-    ds = QuirkDataset("<work_dir>/quirks/<dataset>/<version>/runs/0")    # one run's own parquet
+    ds = QuirkDataset("<output_base_dir>/quirks/<dataset>/<version>/parquet")   # packaged (docs/tutorial.md)
+    ds = QuirkDataset("<output_base_dir>/quirks/<dataset>/<version>/runs/0")    # one run's own parquet
     ev = ds.event(0)          # dict of DataFrames: hits, particles, truth_edges
 """
 from pathlib import Path

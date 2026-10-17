@@ -44,6 +44,8 @@ python3 quirkml/colliderml/make_sample.py my_sample.yaml
 
 This writes the stage configs to `quirks/configs/<dataset>/` (the dataset is named e.g. `m400_L1000_mu0`), creates the runs directory `quirks/quirks/<dataset>/v1/runs/`, and prints the commands below.
 
+The datasets go under `work_dir` unless you set `output_base_dir`, e.g. to a shared data area. They are then in `<output_base_dir>/quirks/<dataset>/<version>/`, the ColliderML production layout (campaign `quirks`); configs, logs, the image and the plugin stay in `work_dir`. The commands below assume the default.
+
 As in ColliderML production, a sample is a set of runs. Run `N` is generated, simulated and digitised on its own, in `runs/<N>/`, with the seed `<dataset>_<version>_run<N>`, so rerunning a run gives the same events and runs can be spread over cores, nodes or batch jobs. At the end, packaging joins all runs into one dataset.
 
 ## 3. Run the stages
@@ -112,6 +114,6 @@ The same commands make large samples; set `runs` and `events_per_run` in the set
 
 ## Site notes
 
-- **NERSC (Perlmutter).** podman-hpc is found first. Work on `$PSCRATCH` (MadGraph fails on CFS, and home is small); it is purged after 8 weeks without access, so copy the parquet you want to keep. Run steps 1 and 3 in a compute allocation, not on a login node (see step 1), e.g. `salloc -A <account> -C cpu -q shared_interactive -t 60 -c 8`, then `srun -n 1 -c 8 bash quirkml/colliderml/setup.sh quirks` and the same `srun` prefix for `run_sample.sh`. For large samples, `colliderml/batch/slurm_runs.sh` runs one task per run; the debug QOS (`-q debug`, up to 30 minutes) usually starts at once and suits pilots. Slurm counts hardware threads as CPUs on Perlmutter, so give `--cpus-per-task` twice the stage's threads (16 for `sim_threads: 8`). A pilot of 8 runs x 500 events at mu = 0 took 1.7 minutes for generation, 20 s for stage1, 7 minutes for simulation (one debug job, 8 tasks on one node), 1 minute for digitisation and 34 s for packaging.
+- **NERSC (Perlmutter).** podman-hpc is found first. On m4958, set `output_base_dir: /global/cfs/cdirs/m4958/data/ColliderML/simulation`, where the ColliderML datasets live. Work on `$PSCRATCH` (MadGraph fails on CFS, and home is small); it is purged after 8 weeks without access, so copy the parquet you want to keep. Run steps 1 and 3 in a compute allocation, not on a login node (see step 1), e.g. `salloc -A <account> -C cpu -q shared_interactive -t 60 -c 8`, then `srun -n 1 -c 8 bash quirkml/colliderml/setup.sh quirks` and the same `srun` prefix for `run_sample.sh`. For large samples, `colliderml/batch/slurm_runs.sh` runs one task per run; the debug QOS (`-q debug`, up to 30 minutes) usually starts at once and suits pilots. Slurm counts hardware threads as CPUs on Perlmutter, so give `--cpus-per-task` twice the stage's threads (16 for `sim_threads: 8`). A pilot of 8 runs x 500 events at mu = 0 took 1.7 minutes for generation, 20 s for stage1, 7 minutes for simulation (one debug job, 8 tasks on one node), 1 minute for digitisation and 34 s for packaging.
 - **lxplus and other hosts with Apptainer.** Use Apptainer (`QUIRKML_RUNTIME=apptainer`); keep the work directory off AFS home, which is too small.
 

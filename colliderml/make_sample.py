@@ -4,12 +4,12 @@
 
 Writes <work_dir>/configs/<dataset>/ with the stage configs and sample.env (the resolved
 settings, read by colliderml/run_stage.sh), and creates the runs directory
-<work_dir>/quirks/<dataset>/<version>/runs/ (ColliderML production's
-<campaign>/<dataset>/<version>/runs/<N> layout, campaign "quirks"). Templates:
+<output_base_dir>/quirks/<dataset>/<version>/runs/ (ColliderML production's
+<campaign>/<dataset>/<version>/runs/<N> layout, campaign "quirks"; output_base_dir defaults to work_dir). Templates:
 colliderml/templates/. Stage 1 is merge_smear for mu = 0 and pythia_generation with merging for
 mu > 0. The configs hold no seed: colliderml/run_stage.sh gives each run the seed
 <dataset>_<version>_run<N>, as production's run_stage.py does. The configs use the paths inside
-the container (/work = work_dir, /workspace = colliderml-production). Needs only python3.
+the container (/work = work_dir, /data = output_base_dir, /workspace = colliderml-production). Needs only python3.
 """
 import argparse
 import os
@@ -46,10 +46,11 @@ def main():
     a = ap.parse_args()
     s = read_settings(a.settings)
 
-    work = Path(os.path.expanduser(os.path.expandvars(s["work_dir"])))
-    if not work.is_absolute():                      # relative to the settings file
-        work = Path(a.settings).resolve().parent / work
-    work = work.resolve()
+    def resolve(value):                             # relative paths are relative to the settings file
+        path = Path(os.path.expanduser(os.path.expandvars(value)))
+        return (path if path.is_absolute() else Path(a.settings).resolve().parent / path).resolve()
+    work = resolve(s["work_dir"])
+    out_base = resolve(s.get("output_base_dir") or s["work_dir"])
     lam, mass, mu = float(s["lambda_ev"]), float(s["mass_gev"]), int(s["mu"])
     runs, per_run, version = int(s["runs"]), int(s["events_per_run"]), s["version"]
     dataset = f"m{mass:g}_L{lam:g}_mu{mu}"
@@ -70,13 +71,15 @@ def main():
     names = [stage1, "2_simulation.yaml", "3_digitization.yaml", "4_package_parquet.yaml"]
 
     cfg_dir = work / "configs" / dataset
-    runs_dir = work / CAMPAIGN / dataset / version / "runs"
+    runs_dir = out_base / CAMPAIGN / dataset / version / "runs"
     cfg_dir.mkdir(parents=True, exist_ok=True)
+    if runs_dir.is_dir() and any(runs_dir.iterdir()):
+        print(f"note: {runs_dir} already has runs; run_stage.sh keeps finished runs (it skips them)")
     runs_dir.mkdir(parents=True, exist_ok=True)
     for n in names:
         (cfg_dir / n).write_text((TEMPLATES / n).read_text().format(**values))
 
-    env = dict(WORK_DIR=work, CAMPAIGN=CAMPAIGN, DATASET=dataset, VERSION=version,
+    env = dict(WORK_DIR=work, OUTPUT_BASE=out_base, CAMPAIGN=CAMPAIGN, DATASET=dataset, VERSION=version,
                RUNS_DIR=f"{CAMPAIGN}/{dataset}/{version}/runs", MASS_GEV=f"{mass:g}",
                LAMBDA_EV=f"{lam:g}", MU=mu, RUNS=runs, EVENTS_PER_RUN=per_run,
                SIM_THREADS=values["SIM_THREADS"], DIGI_THREADS=values["DIGI_THREADS"],

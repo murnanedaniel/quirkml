@@ -11,6 +11,7 @@
 | `/work` | `<work_dir>` |
 | `/workspace` | `<work_dir>/colliderml-production` |
 | `/cache` | `<work_dir>/cache` (Geant4 data; `COLLIDERML_CACHE=/cache`) |
+| `/data` | `<output_base_dir>` (default `<work_dir>`): the datasets |
 | `/quirkml` | this repo |
 
 Runtime: `$QUIRKML_RUNTIME` if set. Otherwise the first of `podman-hpc`, `docker`, `podman`, `apptainer`, `singularity` found on the path, then the Apptainer in `/cvmfs/oasis.opensciencegrid.org/mis/apptainer/current/bin/`. With Apptainer the image is pulled to `<work_dir>/sw-<tag>.sif`, and `APPTAINER_CACHEDIR` and `APPTAINER_TMPDIR` default to `<work_dir>/cache/apptainer` and `.../apptainer-tmp`, so the roughly 6 GB image cache does not go to `$HOME`. Apptainer runs with `--cleanenv --writable-tmpfs --home <work_dir>/cache/home`, and `<work_dir>/cache/g4data` is mounted at `/g4data`, where the image keeps its Geant4 data: the download would otherwise go into Apptainer's small in-memory overlay and fail, and tools in the image (`uv`) would write to the user's home. Other runtimes use their own image store.
@@ -27,10 +28,10 @@ Geant4 data (2-4 GB) is downloaded into `cache/g4data` the first time the image 
 
 ## Settings and configs
 
-`colliderml/sample.yaml` has flat `key: value` lines: `work_dir`, `mass_gev`, `lambda_ev`, `mu`, `runs`, `events_per_run`, `version`, `sim_threads`, `digi_threads`, `chunk_size`, `max_boost`. `colliderml/make_sample.py <settings>` reads them (python3 only, no pyyaml) and fills the files in `colliderml/templates/`.
+`colliderml/sample.yaml` has flat `key: value` lines: `work_dir`, `output_base_dir` (optional), `mass_gev`, `lambda_ev`, `mu`, `runs`, `events_per_run`, `version`, `sim_threads`, `digi_threads`, `chunk_size`, `max_boost`. `colliderml/make_sample.py <settings>` reads them (python3 only, no pyyaml) and fills the files in `colliderml/templates/`.
 
 - Dataset name: `m<mass>_L<lambda>_mu<mu>`; campaign `quirks`; version from the settings (`v1`).
-- Configs go to `<work_dir>/configs/<dataset>/`. Runs go to `<work_dir>/quirks/<dataset>/<version>/runs/<N>/`, production's `<campaign>/<dataset>/<version>/runs/<N>` layout, and the packaged dataset to `<work_dir>/quirks/<dataset>/<version>/parquet/`.
+- Configs go to `<work_dir>/configs/<dataset>/`. Runs go to `<output_base_dir>/quirks/<dataset>/<version>/runs/<N>/`, production's `<campaign>/<dataset>/<version>/runs/<N>` layout, and the packaged dataset to `<output_base_dir>/quirks/<dataset>/<version>/parquet/`. `output_base_dir` defaults to `work_dir`; on m4958 it is `/global/cfs/cdirs/m4958/data/ColliderML/simulation`, where the production datasets are.
 - `sample.env` in the config directory holds the resolved settings for `gen/run_quirkgen.sh` and `colliderml/run_stage.sh`.
 - Seeds: as in production (`cli_utils.build_stage_command`), every stage of run `N` gets `--seed <dataset>_<version>_run<N>`, which the stage scripts hash to an integer (`hash_seed_string`: md5, first 4 bytes, modulo 900000000). The stage scripts offset it where they need two streams (Pythia8 pileup uses seed + 1000). quirk-gen gets the same integer, computed by `gen/run_quirkgen.sh`. Reruns of a run give the same events; a new `version` gives an independent sample.
 - Stage 1 is `1_merge_smear.yaml` for mu = 0 and `1_pythia_pileup_merge.yaml` for mu > 0. `4_package_parquet.yaml` is the packaging config.
@@ -70,7 +71,7 @@ Plugin values in `2_simulation.yaml`:
 
 ```
 cd /workspace/scripts/simulation && python3 <script> --config /work/configs/<dataset>/<cfg> \
-    --output /work/quirks/<dataset>/<version>/runs --output-subdir <N> --seed <dataset>_<version>_run<N>
+    --output /data/quirks/<dataset>/<version>/runs --output-subdir <N> --seed <dataset>_<version>_run<N>
 ```
 
 which is the command production's `build_stage_command` builds. `--parallel K` runs K runs at a time (xargs). A stage starts only for runs that have finished the previous stage. After a run, its output is checked, and if the check passes the driver writes `runs/<N>/.done_<stage>`; finished runs are skipped unless `--force`. Logs go to `<config_dir>/logs/<stage>/run<N>.log`. `status` counts, per stage, the runs done and lists the missing ones. `colliderml/run_sample.sh <config_dir> [--parallel K]` runs all stages in order.
@@ -96,14 +97,14 @@ Before digitising a run, the driver moves any parquet tables already in the run 
 
 ## Output layout and reading it
 
-Each run directory has `events.json`, `events.hepmc`, `events_hepmc2.hepmc`, `merged_events.hepmc3`, `edm4hep.root`, and one directory per parquet table (`tracker_hits/`, `tracker_simhits/`, `particles/`, and others). Nothing is deleted. The packaged dataset is in `<work_dir>/quirks/<dataset>/<version>/parquet/`.
+Each run directory has `events.json`, `events.hepmc`, `events_hepmc2.hepmc`, `merged_events.hepmc3`, `edm4hep.root`, and one directory per parquet table (`tracker_hits/`, `tracker_simhits/`, `particles/`, and others). Nothing is deleted. The packaged dataset is in `<output_base_dir>/quirks/<dataset>/<version>/parquet/`.
 
 `ml/quirk_loader.py` reads either:
 
 ```python
 from quirk_loader import QuirkDataset
-ds = QuirkDataset("<work_dir>/quirks/<dataset>/<version>/parquet")    # packaged
-ds = QuirkDataset("<work_dir>/quirks/<dataset>/<version>/runs/0")     # one run
+ds = QuirkDataset("<output_base_dir>/quirks/<dataset>/<version>/parquet")    # packaged
+ds = QuirkDataset("<output_base_dir>/quirks/<dataset>/<version>/runs/0")     # one run
 ev = ds.event(ds.event_ids[0])     # dict of DataFrames: hits, particles, truth_edges
 ```
 

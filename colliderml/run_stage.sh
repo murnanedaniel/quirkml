@@ -30,8 +30,9 @@ usage() { sed -n '5,7p' "$0" >&2; exit 2; }
 CFG=$(cd "$1" && pwd) || exit 1
 STAGE=$2; shift 2
 source "$CFG/sample.env"
+OUTPUT_BASE=${OUTPUT_BASE:-$WORK_DIR}     # configs made before output_base_dir existed
 QUIRKML=$(cd "$(dirname "$0")/.." && pwd)
-RUNS_HOST=$WORK_DIR/$RUNS_DIR
+RUNS_HOST=$OUTPUT_BASE/$RUNS_DIR
 RUN_IDS=($(seq 0 $((RUNS - 1))))
 PARALLEL=1 FORCE=0 ONE=
 while [ $# -gt 0 ]; do
@@ -85,7 +86,7 @@ EOF
 
 # The command that runs a stage script for one run, inside the image.
 stage_command() {   # stage_command <stage> <N>
-  local runs=/work/$RUNS_DIR seed="${DATASET}_${VERSION}_run$2"
+  local runs=/data/$RUNS_DIR seed="${DATASET}_${VERSION}_run$2"
   local common="--config /work/configs/$DATASET/%s --output $runs --output-subdir $2 --seed $seed"
   case $1 in
     stage1)
@@ -129,7 +130,7 @@ run_one() {   # run_one <stage> <N>: run, check, mark done
 }
 
 mkdir -p "$CFG/logs"
-source "$QUIRKML/colliderml/container.sh" "$WORK_DIR" >/dev/null || exit 1
+source "$QUIRKML/colliderml/container.sh" "$WORK_DIR" "$OUTPUT_BASE" >/dev/null || exit 1
 
 if [ -n "$ONE" ]; then run_one "$STAGE" "$ONE"; exit; fi
 
@@ -146,7 +147,7 @@ if [ "$STAGE" = status ]; then
     [ ${#missing[@]} -gt 0 ] && [ ${#missing[@]} -le 20 ] && printf "; missing: %s" "${missing[*]}"
     echo
   done
-  P=$WORK_DIR/$CAMPAIGN/$DATASET/$VERSION/parquet
+  P=$OUTPUT_BASE/$CAMPAIGN/$DATASET/$VERSION/parquet
   [ -d "$P" ] && echo "  packaged      $P" || echo "  packaged      not yet"
   exit 0
 fi
@@ -156,7 +157,7 @@ if [ "$STAGE" = package ]; then
   missing=()
   for n in $(seq 0 $((RUNS - 1))); do [ -f "$RUNS_HOST/$n/.done_digitization" ] || missing+=("$n"); done
   [ ${#missing[@]} -eq 0 ] || die "runs not digitised: ${missing[*]} (packaging needs runs 0 to $((RUNS - 1)), no gaps)"
-  P=$WORK_DIR/$CAMPAIGN/$DATASET/$VERSION/parquet
+  P=$OUTPUT_BASE/$CAMPAIGN/$DATASET/$VERSION/parquet
   [ -e "$P" ] && [ $FORCE -eq 0 ] && die "$P exists; move it aside (or use --force to write into it)"
   mkdir -p "$CFG/logs/package"
   echo "== package: $RUNS runs -> $P"

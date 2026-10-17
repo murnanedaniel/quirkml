@@ -9,5 +9,5 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 for stage in generation stage1 simulation digitization; do
   bash "$HERE/run_stage.sh" "$CFG" "$stage" "$@"
 done
-P=$(source "$CFG/sample.env"; echo "$WORK_DIR/$CAMPAIGN/$DATASET/$VERSION/parquet")
+P=$(source "$CFG/sample.env"; echo "${OUTPUT_BASE:-$WORK_DIR}/$CAMPAIGN/$DATASET/$VERSION/parquet")
 [ -d "$P" ] && echo "already packaged: $P" || bash "$HERE/run_stage.sh" "$CFG" package

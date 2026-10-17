@@ -7,6 +7,11 @@
 # relative to this settings file; $VARS and ~ are expanded.
 work_dir: quirks
 
+# Where the datasets go: <output_base_dir>/quirks/<dataset>/<version>/{runs,parquet}, the ColliderML
+# production layout. Unset: work_dir. Point it at a shared data area to keep the datasets with others of
+# the same kind (on NERSC m4958: /global/cfs/cdirs/m4958/data/ColliderML/simulation).
+# output_base_dir: /path/to/data
+
 # Physics point. The dataset is named m<mass>_L<lambda>_mu<mu>.
 mass_gev: 400        # quirk mass; quirk-gen generates this
 lambda_ev: 1000      # string scale Lambda (sqrt of the tension); used only in the simulation
@@ -14,7 +19,7 @@ mu: 0                # pileup: 0 for none, else mean number of Pythia8 SoftQCD e
 
 # Size. The sample is split into runs of events_per_run events, as in ColliderML production;
 # each run is generated, simulated and digitised on its own, so runs can go to different cores,
-# nodes or batch jobs. Runs go to <work_dir>/quirks/<dataset>/<version>/runs/<N>/.
+# nodes or batch jobs. Runs go to <output_base_dir>/quirks/<dataset>/<version>/runs/<N>/.
 runs: 1
 events_per_run: 20
 # The seed of each run and stage is the string <dataset>_<version>_run<N>, as in ColliderML

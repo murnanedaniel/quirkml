@@ -2,17 +2,19 @@
 # does: the production scripts at /workspace, outputs at /work, caches at /cache. Sourced by the
 # other scripts, not run directly.
 #
-#   source colliderml/container.sh <work_dir>
+#   source colliderml/container.sh <work_dir> [<output_base_dir>]
 #   qml_run "<bash command>"
 #
 # Mounts: <work_dir> -> /work, <work_dir>/colliderml-production -> /workspace,
-#         <work_dir>/cache -> /cache, this repo -> /quirkml.
+#         <work_dir>/cache -> /cache, this repo -> /quirkml,
+#         <output_base_dir> (default <work_dir>) -> /data: the datasets.
 # Runtime: $QUIRKML_RUNTIME, else the first found of podman-hpc (NERSC), docker, podman, apptainer.
 
 # The default image has Pythia8 and HepMC3 python bindings (OpenDataDetector/sw branch
 # feat/python-pythia8-hepmc3), so quirk-gen also runs in it. sw:pr-8 works for the stages alone.
 QUIRKML_IMAGE=${QUIRKML_IMAGE:-ghcr.io/opendatadetector/sw:feat-python-pythia8-hepmc3}
-QML_WORK=$(cd "${1:?usage: source container.sh <work_dir>}" && pwd)
+QML_WORK=$(cd "${1:?usage: source container.sh <work_dir> [<output_base_dir>]}" && pwd)
+QML_DATA=$(mkdir -p "${2:-$1}" && cd "${2:-$1}" && pwd)
 QML_REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 QML_APPTAINER_FALLBACK=/cvmfs/oasis.opensciencegrid.org/mis/apptainer/current/bin/apptainer
 
@@ -64,13 +66,13 @@ qml_run() {
     # keeps the container off the user's home directory (and its quota).
     mkdir -p "$QML_WORK/cache/g4data" "$QML_WORK/cache/home"
     "$QML_RT" exec --cleanenv --writable-tmpfs --home "$QML_WORK/cache/home" \
-      -B "$QML_WORK:/work,$QML_WORK/colliderml-production:/workspace,$QML_WORK/cache:/cache,$QML_REPO:/quirkml" \
+      -B "$QML_WORK:/work,$QML_WORK/colliderml-production:/workspace,$QML_WORK/cache:/cache,$QML_REPO:/quirkml,$QML_DATA:/data" \
       -B "$QML_WORK/cache/g4data:/g4data" \
       --env COLLIDERML_CACHE=/cache "$QML_SIF" bash -c "$setup $1"
   else
     "$QML_RT" run --rm \
       -v "$QML_WORK:/work" -v "$QML_WORK/colliderml-production:/workspace" \
-      -v "$QML_WORK/cache:/cache" -v "$QML_REPO:/quirkml" \
+      -v "$QML_WORK/cache:/cache" -v "$QML_REPO:/quirkml" -v "$QML_DATA:/data" \
       -e COLLIDERML_CACHE=/cache --entrypoint /bin/bash "$QUIRKML_IMAGE" -c "$setup $1"
   fi
 }
