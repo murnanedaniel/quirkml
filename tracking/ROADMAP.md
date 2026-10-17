@@ -34,7 +34,10 @@ Gate to T3: the better of the two beats v2 at matched fake rate on the 3000 test
   All tracks stay targets; no per-quirk weighting of the mask loss (it lost in LRT).
 - Evaluate each at object threshold 0.1, 0.2, 0.3, 0.5 (mask 0.5); compare with T1 at matched fake rate.
 - Long run from the best LR (until val loss flattens, checkpointed across windows).
-- Later variant only if needed: extra quirk weight in the object (existence) loss (untested in LRT).
+- Result (2026-10-17): best max LR 5e-5, quirk eff 0.180 at fake 0.091 (test, threshold 0.1), far below the GNN.
+  2e-4 diverged. Long run at 5e-5 (100k steps) running.
+- Quirk-specific variant, started 2026-10-17 because of that gap: quirks x10 in the object and mask losses, all
+  tracks still targets, LR re-scanned (5e-5, 1e-4).
 - If the objective changes to quirks specifically (quirk-only or quirk-weighted targets or losses), repeat the LR
   scan for that objective: the all-tracks optimum need not carry over (Daniel, 2026-10-17).
 
