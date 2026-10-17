@@ -35,6 +35,8 @@ Gate to T3: the better of the two beats v2 at matched fake rate on the 3000 test
 - Evaluate each at object threshold 0.1, 0.2, 0.3, 0.5 (mask 0.5); compare with T1 at matched fake rate.
 - Long run from the best LR (until val loss flattens, checkpointed across windows).
 - Later variant only if needed: extra quirk weight in the object (existence) loss (untested in LRT).
+- If the objective changes to quirks specifically (quirk-only or quirk-weighted targets or losses), repeat the LR
+  scan for that objective: the all-tracks optimum need not carry over (Daniel, 2026-10-17).
 
 ## T3. Edge-geo and flex-geo
 
