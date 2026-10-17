@@ -37,12 +37,15 @@ def first(lists, fill):
 def convert_file(hits_path, simhits_path, out_path):
     hits = pq.read_table(hits_path)
     sim = pq.read_table(simhits_path, columns=["event_id", "true_x", "true_y", "true_z", "true_time"])
-    assert hits["event_id"].to_pylist() == sim["event_id"].to_pylist(), f"event mismatch: {hits_path}"
+    # rows are not in event_id order, and the order can differ between tables: match them by event_id
+    sim_row = {e: j for j, e in enumerate(sim["event_id"].to_pylist())}
+    assert set(sim_row) == set(hits["event_id"].to_pylist()), f"different events in {hits_path} and {simhits_path}"
     cols = {k: [] for k in ["event_id", *R1_TYPES, *EXTRA]}
     for i in range(hits.num_rows):
         h = {c: hits[c][i].as_py() for c in ["x", "y", "z", "detector", "volume_id", "layer_id", "surface_id",
                                              "particle_ids", "simhit_ids", *EXTRA]}
-        s = {c: np.asarray(sim[c][i].as_py()) for c in ["true_x", "true_y", "true_z", "true_time"]}
+        j = sim_row[hits["event_id"][i].as_py()]
+        s = {c: np.asarray(sim[c][j].as_py()) for c in ["true_x", "true_y", "true_z", "true_time"]}
         sid = first(h["simhit_ids"], -1).astype(np.int64)
         ok = sid >= 0
         cols["event_id"].append(hits["event_id"][i].as_py())
