@@ -1,0 +1,23 @@
+# Quirk sample, stage 3: ACTS digitisation + native parquet (drift_beamspot settings).
+# Note: ACTS seeding/CKF/truth tracking assume helices; for quirks use tracker_simhits and tracker_hits.
+dataset: "m200_L774_mu0"
+stage: "digitization"
+events: 500
+threads: 8
+# seed: given per run on the command line, <dataset>_<version>_run<N> (colliderml/run_stage.sh)
+odd_geo_dir: /opt/odd
+digi_config: /opt/odd/config/odd-digi-geometric-config.json
+output_parquet_arrow: True
+digi: True
+reco: False
+num_seeds_per_spm: 40
+write_helix_parameters: True
+truth_tracking: false
+truth_tracking_fitter: kf
+truth_tracking_prefit: gx2f
+truth_tracking_delta_r: [10.0, 1.0e6]
+truth_tracking_abs_delta_z: [0.0, 1.0e6]
+parquet_events_per_shard: 100000
+parquet_events_per_row_group: 1000
+seed_impact_max: 8.0
+output_measurements_root: True
