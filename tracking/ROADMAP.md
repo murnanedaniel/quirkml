@@ -9,6 +9,28 @@ Resources: GPU on account m5386 (`-A m5386`), CPU simulation on m4958. GPU queue
 up to 2 GPUs each: the fast lane), gpu_shared / gpu_regular batch (slow). gpu_interactive and CPU interactive are
 left to other projects. Budgets: about 400 GPU-hours, about 1000 CPU node-hours.
 
+## Revised order (2026-10-23, agreed with Daniel): data, question and baselines before more tuning
+
+Status at 2026-10-23: grid production done (7679/7784 runs; 164/220 datasets packaged; 104/110 grid test sets).
+GNN v2 (all tracks) 0.728 per-quirk at fake 0.107; LRT-style quirk weighting worse (0.52-0.54); MaskFormer
+0.14-0.17 after the loss fix, for every LR, length and weighting tried. Tight (90%) efficiency below 0.07 for all.
+
+- A. Data: (1) pair-production crash: cause, physics size (on/off on the same events at m=50 GeV), then remake the
+  affected datasets as a new version; (2) zero cluster direction columns: cause and fix, re-digitise from the kept
+  edm4hep; (3) explicit truth rule for quirk hits (secondaries, hits shared by both quirks); (4) provenance
+  (README in the dataset tree, code committed).
+- B. Question: quote both per-quirk efficiency and COUPLED quirk efficiency (both quirks double-matched as one set,
+  the union of their hits, without telling them apart). Coupled finding is a different training task
+  (MaskFormer: the pair as one target). Comparisons as efficiency-vs-fake curves with binomial errors and 2-3
+  seeds; choices on val only; test events and grid test runs never used for tuning.
+- C. Baselines: ACTS CKF tracks (already in the parquet, scored as the evaluator's reference sample); ceilings
+  (graph ceiling, perfect edge scores); the fit/ road search.
+- D. Diagnose before tuning: MaskFormer train vs val, matching per class, mask composition, attention reach,
+  origin-prior-free inputs (lessons from the ML-tracking-review thread); GNN: what the tracks touching quirk hits
+  actually are (switches between the quirks, where and why); GNN data scaling 16k -> 100k -> 1M.
+- E. Separation work (hit direction, pair-aware track building, edge-geo/flex-geo on the quirk graph).
+- F. Grid generalisation maps on the 104 test sets, then training on the grid.
+
 ## T0. Done (2026-10-15/16)
 
 - Data: m200 Lambda 774 eV mu 0, 20k events (train 0-15999, val 16000-16999, test 17000-19999); pilots; cost study.
