@@ -28,3 +28,5 @@ user_physics:
       MaxMergeT: 1.0e-6
       MaxMergeMag: 1.0e-6
       EnableEM: true                  # full EM on the quirks (ionisation, msc, brems, pair)
+      EnablePairProduction: false     # Geant4 11.3 has no pair-production tables for the quirks and stops
+                                      # the run (em0033); the effect is ~3e-5 of ionisation (docs/colliderml.md)

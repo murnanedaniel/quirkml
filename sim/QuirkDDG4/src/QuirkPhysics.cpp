@@ -22,6 +22,7 @@
 #include "QuirkTransportation.h"
 #include "QuirkWatcher.h"
 #include "QuirkStackingAction.h"
+#include "QuirkPairProductionModel.h"
 
 #include <G4Version.hh>
 #include <G4ProcessManager.hh>
@@ -55,6 +56,9 @@ namespace dd4hep {
         declareProperty("MaxMergeMag",    m_maxMergeMag);      // mm
         declareProperty("EnableEM",       m_enableEM);         // EM processes on quirks
         declareProperty("EnableIonisation", m_enableIoni);     // ionisation when EnableEM is false (needed for hits)
+        declareProperty("EnableBremsstrahlung",  m_enableBrem); // with EnableEM: G4hBremsstrahlung on the quirks
+        declareProperty("EnablePairProduction",  m_enablePair); // with EnableEM: G4hPairProduction on the quirks
+        declareProperty("PairProductionOwnTables", m_pairOwnTables); // pair production with QuirkPairProductionModel
       }
       virtual ~QuirkPhysics() = default;
 
@@ -103,9 +107,18 @@ namespace dd4hep {
             if (m_enableEM) {
               pmanager->AddProcess(new G4hMultipleScattering, -1, 1, 1);
               pmanager->AddProcess(new G4hIonisation,         -1, 2, 2);
-              pmanager->AddProcess(new G4hBremsstrahlung,     -1, 3, 3);
-              pmanager->AddProcess(new G4hPairProduction,     -1, 4, 4);
-              pmanager->AddProcess(new QuirkWatcher,          -1, -1, 5);
+              // Brems and pair production can be left out (docs/colliderml.md); with both
+              // on, the process list is the one of the earlier versions.
+              int order = 3;
+              if (m_enableBrem) { pmanager->AddProcess(new G4hBremsstrahlung, -1, order, order); ++order; }
+              if (m_enablePair) {
+                auto* pair = new G4hPairProduction;
+                // Geant4 11.3's own model has no sampling tables for the quirks and stops the
+                // run at their first pair production (em0033); see QuirkPairProductionModel.h.
+                if (m_pairOwnTables) pair->SetEmModel(new QuirkPairProductionModel(particle));
+                pmanager->AddProcess(pair, -1, order, order); ++order;
+              }
+              pmanager->AddProcess(new QuirkWatcher,          -1, -1, order);
             } else {
               // diagnostic: keep ionisation (required to create the
               // SimTrackerHits) but drop multiple scattering + radiative
@@ -121,7 +134,9 @@ namespace dd4hep {
             }
           }
         }
-        info("+++ Quirk: installed QuirkTransportation on %d quirk species", nq);
+        info("+++ Quirk: installed QuirkTransportation on %d quirk species (EM %s, brems %s, pair production %s)",
+             nq, m_enableEM ? "on" : "off", (m_enableEM && m_enableBrem) ? "on" : "off",
+             (m_enableEM && m_enablePair) ? (m_pairOwnTables ? "on, own tables" : "on") : "off");
 
         // The quirk and antiquirk must co-evolve their shared string: an extra
         // waiting stack + QuirkStackingAction force the partner to wait while
@@ -152,6 +167,9 @@ namespace dd4hep {
       double m_maxMergeMag{1.0e-6};
       bool   m_enableEM{true};      // ionisation/MS/brems/pair on the quirks
       bool   m_enableIoni{true};    // with EnableEM false: keep ionisation (true) or none at all
+      bool   m_enableBrem{true};    // with EnableEM true: hadron bremsstrahlung on the quirks
+      bool   m_enablePair{true};    // with EnableEM true: e+e- pair production on the quirks
+      bool   m_pairOwnTables{false}; // pair production with QuirkPairProductionModel (own sampling tables)
     };
   }
 }

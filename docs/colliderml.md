@@ -48,6 +48,22 @@ Plugin values in `2_simulation.yaml`:
 | `FirstStringLen`, `MaxMergeT`, `MaxMergeMag` | 1.0e-6 (fixed in the template) |
 | `EnableEM` | true |
 
+Further plugin properties (plugin defaults shown; the template sets `EnablePairProduction: false`):
+
+| Property | Default | Meaning |
+|---|---|---|
+| `EnableBremsstrahlung` | true | with `EnableEM`: `G4hBremsstrahlung` on the quirks |
+| `EnablePairProduction` | true | with `EnableEM`: `G4hPairProduction` on the quirks |
+| `PairProductionOwnTables` | false | pair production with `QuirkPairProductionModel` instead of Geant4's `G4hPairProductionModel` |
+
+With the defaults the process list is the one of the earlier plugin versions.
+
+### Pair production on quirks and Geant4 error em0033
+
+About 1% of 500-event runs (7% at m = 50 GeV) stopped with the fatal Geant4 error em0033 from `G4MuPairProductionModel::DataCorrupted`. Cause, in Geant4 11.3: `G4MuPairProductionModel` (the base of `G4hPairProductionModel`) keeps its sampling tables in a `G4ElementData` that it finds by name in the global `G4ElementDataRegistry`. It sets the name only for e, mu, pi, K and p. For the quirk the name stays empty, and `GetElementDataByName("")` returns the first `G4ElementData` in the registry that was never named, which belongs to another part of Geant4 and has no pair-production tables (in the ODD tracker setup, entries 0, 2 and 3 are empty). The quirk model therefore never builds tables, in any thread, and the first pair-production interaction on a quirk stops the run. The model acts only above a kinetic energy of 8 times the mass, so the rate falls with the quirk mass. All 70 crashes in the pilot and production logs are on quirk+ or quirk-. Reproduced in one thread: sampling a pair at T = 9 M in silicon gives em0033 at once.
+
+`PairProductionOwnTables: true` gives the quirks a model (`src/QuirkPairProductionModel.cpp`) that differs from Geant4's only in building its tables under its own name; with it the same runs finish. Pair production and bremsstrahlung on quirks are small in this detector (m = 50 GeV, Lambda = 2154 eV, mu = 0, 4000 events, Stage A1 study in `/pscratch/sd/d/danieltm/quirk_stageA/pairprod/`): about 0.07 pair-production interactions per 500-event run, about 14-20 MeV each, against about 41 MeV ionisation deposited per quirk; bremsstrahlung about 3e-7 interactions per event. Tracker hits, deposited energy and hit positions per quirk agree between pair production on and off within the statistical precision (hits per quirk 18.4, difference -0.03 +- 0.03). Runs that finished with the default settings had no pair-production interaction on a quirk, so they are equivalent to runs with `EnablePairProduction: false`.
+
 `docs/validation_status.md` is the source cited in the settings and template comments for `max_boost` (1e-3 agrees with 1e-4 to 0.1 mm; 1e-2 does not converge for slack strings).
 
 ## quirk-gen and the HepMC conversion
