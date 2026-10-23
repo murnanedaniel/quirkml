@@ -1,0 +1,56 @@
+name: ColliderML_LRT_Deficit
+
+data:
+  return_deficit_features: true
+  # Deficit accounting projects the calo/track columns it needs. Returning the
+  # full diagnostic collections decodes their 1000-event row groups per sample.
+  return_tracks: false
+  return_calohits: false
+  build_calohit_associations: false
+
+model:
+  model:
+    init_args:
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: ml_tracking.models.InputNet
+              init_args:
+                input_name: sihit
+                input_dtype: float32
+                fields:
+                  - x
+                  - y
+                  - z
+                  - r
+                  - s
+                  - eta
+                  - phi
+                  - layer_id
+                  - dc_incone
+                  - dc_ecal
+                  - dc_hcal
+                  - dc_trkpt
+                  - dc_ntrk
+                  - dc_ncells
+                net:
+                  class_path: ml_tracking.models.Dense
+                  init_args:
+                    input_size: 14
+                    hidden_layers: [128]
+                    output_size: 256
+                    activation: SwiGLU
+                posenc:
+                  class_path: ml_tracking.models.posenc.PositionEncoder
+                  init_args:
+                    input_name: sihit
+                    dim: 256
+                    fields:
+                      - r
+                      - eta
+                      - phi
+      encoder:
+        init_args:
+          window_size: null
+          window_wrap: false

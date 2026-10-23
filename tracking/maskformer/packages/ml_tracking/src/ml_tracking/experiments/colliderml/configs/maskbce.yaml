@@ -1,0 +1,41 @@
+# Full upstream TrackML loss recipe: object_bce 1.0 + mask_bce 100/mask_focal 50
+# (replaces our mask_dice 2/mask_focal 100). Chains off objbce1.yaml: the only
+# delta vs that config is the mask-loss family.
+model:
+  model:
+    init_args:
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: ml_tracking.models.task.ObjectClassificationTask
+              init_args:
+                name: flow_valid
+                input_object: query
+                output_object: flow
+                target_object: particle
+                losses:
+                  object_bce: 1.0
+                costs:
+                  object_bce: 1.0
+                dim: 256
+                null_weight: 1.0
+                mask_queries: false
+                has_intermediate_loss: true
+                has_first_layer_loss: false
+
+            - class_path: ml_tracking.models.task.ObjectHitMaskTask
+              init_args:
+                name: flow_sihit_assignment
+                input_constituent: sihit
+                input_object: query
+                output_object: flow
+                target_object: particle
+                losses:
+                  mask_bce: 100.0
+                  mask_focal: 50.0
+                costs:
+                  mask_bce: 100.0
+                  mask_focal: 50.0
+                null_weight: 1.0
+                dim: 256

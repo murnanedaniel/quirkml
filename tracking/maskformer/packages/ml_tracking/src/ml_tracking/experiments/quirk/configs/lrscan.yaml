@@ -1,0 +1,8 @@
+# T2 LR scan (ROADMAP.md): batch 8, 30k steps, WSD, object_bce 1.0 (already in quirk.yaml);
+# max LR set per lane with --model.lrs_config.max. Full val split every 1000 steps.
+data:
+  batch_size: 8
+  num_val: 1000
+trainer:
+  max_steps: 30000
+  val_check_interval: 1000

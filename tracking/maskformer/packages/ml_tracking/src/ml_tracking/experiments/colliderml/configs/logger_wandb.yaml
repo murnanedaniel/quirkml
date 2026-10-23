@@ -1,0 +1,9 @@
+trainer:
+  logger:
+    class_path: lightning.pytorch.loggers.WandbLogger
+    init_args:
+      project: colliderml-lrt
+      save_dir: logs
+      # Chained/resumed windows also need a fixed `id: <runtag>` and
+      # `resume: allow` here to continue one W&B run instead of creating one
+      # run per window.

@@ -1,0 +1,10 @@
+model:
+  lrs_config:
+    schedule: wsd
+    warmup_frac: 0.015
+    cooldown_frac: 0.15
+    max: 5e-5
+    initial: 1e-6
+    end: 1e-6
+    skip_scheduler: false
+    weight_decay: 1e-2

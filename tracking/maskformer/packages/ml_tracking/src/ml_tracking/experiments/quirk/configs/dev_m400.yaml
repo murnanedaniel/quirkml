@@ -1,0 +1,6 @@
+# 4k dev set (m400_L1000_mu0): 80 / 5 / 15 split, proportional to the 20k split.
+data:
+  dataset_root: /global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m400_L1000_mu0/v1/parquet_r1
+  train_events: [0, 3199]
+  val_events: [3200, 3399]
+  test_events: [3400, 3999]

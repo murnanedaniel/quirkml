@@ -1,0 +1,17 @@
+# Memorisation check: train and validate on the same 4 events, constant high LR.
+data:
+  train_events: [0, 3]
+  val_events: [0, 3]
+  allow_split_overlap: true
+  num_workers: 1
+trainer:
+  max_steps: 1500
+  val_check_interval: 250
+model:
+  optimizer: AdamW
+  lrs_config:
+    initial: 3e-4
+    max: 3e-4
+    end: 3e-4
+    weight_decay: 0.0
+    skip_scheduler: true

@@ -1,0 +1,40 @@
+# Quirk-weighted variant (ROADMAP T2 "later variant"): all tracks stay targets; quirk targets get weight 10
+# in the object (existence) BCE and in the mask losses (mask_bce, mask_focal; weights normalised to mean one
+# over the valid targets of the batch). Matching costs are unweighted. jsonargparse replaces lists, so the
+# full task list is repeated from quirk.yaml.
+model:
+  model:
+    init_args:
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: ml_tracking.models.task.ObjectClassificationTask
+              init_args:
+                name: flow_valid
+                input_object: query
+                output_object: flow
+                target_object: particle
+                losses: {object_bce: 1.0}
+                costs: {object_bce: 1.0}
+                dim: 256
+                null_weight: 1.0
+                mask_queries: false
+                has_intermediate_loss: true
+                has_first_layer_loss: false
+                object_weight_field: is_quirk
+                object_weight_value: 10.0
+            - class_path: ml_tracking.models.task.ObjectHitMaskTask
+              init_args:
+                name: flow_sihit_assignment
+                input_constituent: sihit
+                input_object: query
+                output_object: flow
+                target_object: particle
+                losses: {mask_bce: 100.0, mask_focal: 50.0}
+                costs: {mask_bce: 100.0, mask_focal: 50.0}
+                null_weight: 1.0
+                dim: 256
+                object_weight_field: particle_is_quirk
+                object_weight_fn: binary
+                object_weight_alpha: 10.0

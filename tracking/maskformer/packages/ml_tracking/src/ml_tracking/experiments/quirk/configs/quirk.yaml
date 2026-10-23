@@ -1,0 +1,181 @@
+# Quirk MaskFormer track finder: base config (main 20k set, m200_L774_mu0).
+# Recipe inherited from the July 2026 ColliderML LRT campaign: Lion, WSD schedule
+# (warmup 1.5%, cooldown 15%), max_lr 1.25e-5, wd 1e-2; object_bce 1.0;
+# mask_bce 100 + mask_focal 50; 10-layer flash-attention encoder.
+# Overlays: dev_m400.yaml (4k dev set), cluster_features.yaml, overfit.yaml.
+name: quirk_mf
+
+data:
+  dataset_root: /global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m200_L774_mu0/v1/parquet_r1
+  # inclusive event_id ranges (rows inside a file are not in event_id order)
+  train_events: [0, 15999]
+  val_events: [16000, 16999]
+  test_events: [17000, 19999]
+  num_train: -1
+  num_val: 200        # val cadence cost; full val split = 1000
+  num_test: -1
+  batch_size: 1
+  num_workers: 4      # >4 OOMed in the LRT campaign
+  # Must equal model.model.decoder.num_queries
+  event_max_num_particles: 128
+  # Ordinary targets: charged, primary, pT > 0.5 GeV, |eta| < 4, >= 3 tracker hits
+  particle_min_pt: 0.5
+  particle_max_abs_eta: 4.0
+  min_num_sihit: 3
+  particle_require_primary: true
+  # Quirks bypass every cut above; kept if they leave >= quirk_min_num_sihit hits,
+  # and sorted first so the truncation to event_max_num_particles never drops them.
+  include_quirks: true
+  quirk_pdg_ids: [10000100]
+  quirk_min_num_sihit: 1
+  cluster_features: false
+  row_group_cache_size: 64
+
+trainer:
+  max_steps: 100000
+  max_epochs: -1
+  accelerator: gpu
+  devices: 1
+  precision: bf16-mixed
+  log_every_n_steps: 10
+  default_root_dir: /pscratch/sd/d/danieltm/quirk_tracking/maskformer/runs/quirk_mf
+  gradient_clip_val: 0.1
+  enable_progress_bar: true
+  val_check_interval: 1000
+  check_val_every_n_epoch: null
+  num_sanity_val_steps: 2
+
+  logger:
+    - class_path: lightning.pytorch.loggers.CSVLogger
+      init_args:
+        save_dir: logs
+    - class_path: lightning.pytorch.loggers.WandbLogger
+      init_args:
+        project: quirk-tracking
+        entity: murnanedaniel
+        save_dir: logs
+        resume: allow
+
+  callbacks:
+    - class_path: ml_tracking.experiments.quirk.prediction_writer.QuirkPredictionWriter
+      init_args:
+        out_dir: predictions
+        object_threshold: 0.1
+        mask_threshold: 0.5
+    - class_path: ml_tracking.experiments.quirk.monitor.TrainingMonitor
+      init_args:
+        log_every_n_steps: 10
+    - class_path: ml_tracking.callbacks.SaveConfig
+    - class_path: ml_tracking.callbacks.Checkpoint
+      init_args:
+        monitor: val/loss
+    - class_path: lightning.pytorch.callbacks.ModelSummary
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: step
+    - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 50
+
+model:
+  optimizer: Lion
+  lrs_config:
+    schedule: wsd
+    warmup_frac: 0.015
+    cooldown_frac: 0.15
+    initial: 1e-6
+    max: 1.25e-5
+    end: 1e-6
+    skip_scheduler: false
+    weight_decay: 1e-2
+  mtl: false
+
+  model:
+    class_path: ml_tracking.models.MaskFormer
+    init_args:
+      dim: &dim 256
+      # Sort key for the hit sequence. Only matters for windowed/local attention;
+      # the encoder below is full attention. Set to null to keep parquet order.
+      input_sort_field: phi
+
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: ml_tracking.models.InputNet
+              init_args:
+                input_name: sihit
+                input_dtype: float32
+                fields: [x, y, z, r, s, eta, phi, layer_id]
+                net:
+                  class_path: ml_tracking.models.Dense
+                  init_args:
+                    input_size: 8
+                    hidden_layers: [128]
+                    output_size: *dim
+                    activation: SwiGLU
+                posenc:
+                  class_path: ml_tracking.models.posenc.PositionEncoder
+                  init_args:
+                    input_name: sihit
+                    dim: *dim
+                    fields: [r, eta, phi]
+
+      encoder:
+        class_path: ml_tracking.models.Encoder
+        init_args:
+          num_layers: 10
+          dim: *dim
+          attn_type: flash-varlen  # supports padded batches (batch_size > 1)
+          hybrid_norm: true
+          norm: FastLayerNorm
+          dense_kwargs: {activation: SwiGLU}
+          attn_kwargs: {bias: false}
+
+      decoder:
+        num_decoder_layers: 4
+        num_queries: 128
+        mask_attention: true
+        use_query_masks: false
+        decoder_layer_config:
+          dim: *dim
+          norm: FastLayerNorm
+          hybrid_norm: true
+          dense_kwargs: {activation: SwiGLU}
+          attn_kwargs: {bias: false, attn_type: torch}
+
+      matcher:
+        class_path: ml_tracking.models.matcher.Matcher
+        init_args:
+          default_solver: scipy
+          adaptive_solver: false
+          parallel_solver: true
+
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: ml_tracking.models.task.ObjectClassificationTask
+              init_args:
+                name: flow_valid
+                input_object: query
+                output_object: flow
+                target_object: particle
+                losses: {object_bce: 1.0}
+                costs: {object_bce: 1.0}
+                dim: *dim
+                null_weight: 1.0
+                mask_queries: false
+                has_intermediate_loss: true
+                has_first_layer_loss: false
+            - class_path: ml_tracking.models.task.ObjectHitMaskTask
+              init_args:
+                name: flow_sihit_assignment
+                input_constituent: sihit
+                input_object: query
+                output_object: flow
+                target_object: particle
+                losses: {mask_bce: 100.0, mask_focal: 50.0}
+                costs: {mask_bce: 100.0, mask_focal: 50.0}
+                null_weight: 1.0
+                dim: *dim

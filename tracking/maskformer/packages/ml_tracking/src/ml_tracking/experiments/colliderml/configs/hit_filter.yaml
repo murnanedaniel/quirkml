@@ -1,0 +1,99 @@
+seed_everything: 42
+name: ColliderML_LRT_Hit_Filter
+
+data:
+  dataset_root: /global/cfs/cdirs/m4958/data/ColliderML/simulation/hard_scatter/higgs_portal/v1/parquet
+  event_max_num_particles: 256
+  num_workers: 0
+  batch_size: 1
+  num_train: -1
+  num_val: 100
+  num_test: 20000
+  train_chunks: [0, 793]
+  val_chunks: [794, 795]
+  test_chunks: [796, 815]
+  particle_min_pt: 0.5
+  particle_max_abs_eta: 4.0
+  particle_hit_cuts:
+    all: {min_num_sihit: 3}
+  particle_include_charged: true
+  particle_include_neutral: false
+  particle_require_primary: true
+  return_calohits: false
+  return_tracks: false
+
+trainer:
+  max_epochs: 20
+  accelerator: cpu
+  devices: 1
+  precision: 32-true
+  default_root_dir: logs
+  gradient_clip_val: 0.1
+  logger:
+    class_path: lightning.pytorch.loggers.CSVLogger
+    init_args: {save_dir: logs, name: lrt_hit_filter}
+  callbacks:
+    - class_path: ml_tracking.experiments.colliderml.hit_filter_writer.HitFilterPredictionWriter
+      init_args: {output_path: outputs/colliderml_hit_filter.parquet}
+    - class_path: ml_tracking.callbacks.InferenceTimer
+    - class_path: ml_tracking.callbacks.SaveConfig
+    - class_path: ml_tracking.callbacks.Checkpoint
+      init_args: {monitor: val/loss}
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+
+model:
+  optimizer: Lion
+  lrs_config:
+    initial: 1e-5
+    max: 5e-5
+    end: 1e-6
+    pct_start: 0.05
+    weight_decay: 1e-5
+  model:
+    class_path: ml_tracking.models.HitFilter
+    init_args:
+      input_sort_field: phi
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: ml_tracking.models.InputNet
+              init_args:
+                input_name: sihit
+                input_dtype: float32
+                fields: [x, y, z, r, s, eta, phi, layer_id]
+                net:
+                  class_path: ml_tracking.models.Dense
+                  init_args:
+                    input_size: 8
+                    hidden_layers: [128]
+                    output_size: &dim 256
+                    activation: SwiGLU
+                posenc:
+                  class_path: ml_tracking.models.posenc.PositionEncoder
+                  init_args:
+                    input_name: sihit
+                    dim: *dim
+                    fields: [r, eta, phi]
+      encoder:
+        class_path: ml_tracking.models.Encoder
+        init_args:
+          num_layers: 10
+          dim: *dim
+          attn_type: flash
+          hybrid_norm: true
+          norm: FastLayerNorm
+          dense_kwargs: {activation: SwiGLU}
+          attn_kwargs: {bias: false}
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: ml_tracking.models.task.HitFilterTask
+              init_args:
+                name: hit_filter
+                input_object: sihit
+                target_field: on_valid_particle
+                dim: *dim
+                threshold: 0.1
+                loss_fn: bce

@@ -1,0 +1,24 @@
+[project]
+name = "tracking_core"
+version = "0.1.0"
+description = "Shared contract for the ML Tracking Review monorepo — predictions schema, ColliderML I/O, pyacts-backed eval."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Daniel Murnane" }]
+requires-python = ">=3.11"
+dependencies = [
+  "colliderml>=0.4.0rc2",
+  "polars>=1.0",
+  "pyarrow>=16",
+]
+
+[project.optional-dependencies]
+eval = ["pyacts>=46.7.0", "scikit-learn>=1.3", "numpy>=1.24"]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tracking_core"]

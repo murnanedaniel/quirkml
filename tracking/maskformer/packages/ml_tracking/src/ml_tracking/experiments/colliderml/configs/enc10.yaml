@@ -1,0 +1,16 @@
+# Upstream-depth encoder: 4 -> 10 layers, flash attention (flash_attn 2.8.3
+# in env). Matches trackml/tracking-lite.yaml encoder scale; decoder untouched
+# to isolate the encoder lever. No windowing needed at ~5k hits/event (mu=0).
+model:
+  model:
+    init_args:
+      encoder:
+        class_path: ml_tracking.models.Encoder
+        init_args:
+          num_layers: 10
+          dim: 256
+          attn_type: flash
+          hybrid_norm: true
+          norm: FastLayerNorm
+          dense_kwargs: {activation: SwiGLU}
+          attn_kwargs: {bias: false}

@@ -1,0 +1,69 @@
+# Overlay for lrt_higgs_portal.yaml. Pass the base config first, then this file.
+name: ColliderML_LRT_Higgs_Portal_Calo
+
+data:
+  return_calo_clusters: true
+  calo_cluster_eps: 0.08
+  calo_cluster_min_samples: 3
+  calo_cluster_min_energy: 0.03
+
+model:
+  model:
+    init_args:
+      # Lists are replaced by jsonargparse overlays, so retain the unchanged
+      # tracker-hit InputNet and append the calorimeter-cluster InputNet.
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: ml_tracking.models.InputNet
+              init_args:
+                input_name: sihit
+                input_dtype: float32
+                fields: [x, y, z, r, s, eta, phi, layer_id]
+                net:
+                  class_path: ml_tracking.models.Dense
+                  init_args:
+                    input_size: 8
+                    hidden_layers: [128]
+                    output_size: 256
+                    activation: SwiGLU
+                posenc:
+                  class_path: ml_tracking.models.posenc.PositionEncoder
+                  init_args:
+                    input_name: sihit
+                    dim: 256
+                    fields: [r, eta, phi]
+
+            - class_path: ml_tracking.models.InputNet
+              init_args:
+                input_name: calocls
+                input_dtype: float32
+                fields:
+                  - log_energy
+                  - log1p_n_cells
+                  - x
+                  - y
+                  - z
+                  - r
+                  - eta
+                  - phi
+                  - sigma_eta
+                  - sigma_phi
+                  - sigma_r
+                  - depth_extent
+                  - ecal_fraction
+                  - mean_abs_z_over_s
+                net:
+                  class_path: ml_tracking.models.Dense
+                  init_args:
+                    input_size: 14
+                    hidden_layers: [128]
+                    output_size: 256
+                    activation: SwiGLU
+                posenc:
+                  class_path: ml_tracking.models.posenc.PositionEncoder
+                  init_args:
+                    input_name: calocls
+                    dim: 256
+                    fields: [r, eta, phi]
