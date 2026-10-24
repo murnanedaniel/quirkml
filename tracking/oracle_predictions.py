@@ -15,6 +15,9 @@ The others are evaluator checks; the oracle on all non-quirk hits, and for the q
   quirk_drop60       a random 60% of each quirk's hits unassigned (-1), the other 40% one track.
   quirk_coinflip     each quirk kept whole or all its hits unassigned, with probability 1/2 (seeded).
                      meta.json records the kept quirks per event, so the expected efficiencies are known exactly.
+  rule_oracle        the oracle of the quirk truth rule (quirk_rule.py; needs --packaged): a hit goes to every quirk
+                     in its packaged particle_ids (a hit of both quirks gets two rows, one per quirk track), other hits
+                     to their first particle that is not a quirk descendant, quirk-secondary hits -1.
 """
 from __future__ import annotations
 
@@ -30,15 +33,36 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from r1_data import QUIRK_PDG, read_events  # noqa: E402
 from tracking_core.schema import RunMeta, write_predictions  # noqa: E402
 
-VARIANTS = ("oracle", "unassigned", "quirk_halves_time", "quirk_drop60", "quirk_coinflip")
+VARIANTS = ("oracle", "unassigned", "quirk_halves_time", "quirk_drop60", "quirk_coinflip", "rule_oracle")
 #: Track ids of the second half of a split quirk: particle_id + this offset (no particle id comes close).
 SPLIT_OFFSET = 1 << 40
 
 
-def make_predictions(dataset: Path, first: int, stop: int, variant: str = "oracle", seed: int = 0):
+def rule_oracle(packaged: Path, first: int, stop: int) -> pl.DataFrame:
+    """Predictions of the rule_oracle variant (see the module docstring)."""
+    from quirk_rule import quirk_descendants, read_packaged, rule_labels
+
+    hits, parts = read_packaged(packaged, first, stop)
+    kinds, _ = quirk_descendants(parts)
+    labels, _ = rule_labels(hits, kinds)
+    all_hits = hits.select("event_id", "hit_id").unique()
+    secondary = all_hits.join(labels, on=["event_id", "hit_id"], how="anti").with_columns(label=pl.lit(-1, pl.Int64))
+    df = pl.concat([labels.select("event_id", "hit_id", "label"), secondary]).sort("event_id", "hit_id", "label")
+    return pl.DataFrame({"event_id": df["event_id"].cast(pl.UInt64), "hit_id": df["hit_id"].cast(pl.UInt64),
+                         "predicted_track_id": df["label"].cast(pl.Int64),
+                         "score": np.full(df.height, np.nan, dtype=np.float32)})
+
+
+def make_predictions(dataset: Path, first: int, stop: int, variant: str = "oracle", seed: int = 0,
+                     packaged: Path | None = None):
     """(predictions DataFrame, extra meta config) for events [first, stop)."""
     if variant not in VARIANTS:
         raise ValueError(f"unknown variant {variant!r}; known: {VARIANTS}")
+    if variant == "rule_oracle":
+        if packaged is None:
+            raise ValueError("rule_oracle needs the packaged dataset (--packaged)")
+        return rule_oracle(packaged, first, stop), {"dataset": str(Path(dataset).resolve()), "events": [first, stop],
+                                                    "variant": variant, "packaged": str(Path(packaged).resolve())}
     hits = read_events(dataset, "tracker_hits", first, stop, columns=["event_id", "particle_id", "time"])
     particles = read_events(dataset, "particles", first, stop, columns=["event_id", "particle_id", "pdg_id"])
     rng = np.random.default_rng(seed)
@@ -94,8 +118,10 @@ def main(argv=None):
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--variant", choices=VARIANTS, default="oracle")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--packaged", type=Path, help="packaged dataset root (rule_oracle only)")
     args = parser.parse_args(argv)
-    df, config = make_predictions(args.dataset, *args.events, variant=args.variant, seed=args.seed)
+    df, config = make_predictions(args.dataset, *args.events, variant=args.variant, seed=args.seed,
+                                  packaged=args.packaged)
     meta = RunMeta(run_id=f"{args.variant}_{args.events[0]}_{args.events[1]}", implementation=f"truth:{args.variant}",
                    config=config, wrote_at=datetime.datetime.now(datetime.timezone.utc).isoformat())
     path = write_predictions(df, args.out, meta)

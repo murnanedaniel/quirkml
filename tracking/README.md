@@ -6,6 +6,9 @@ Files:
 - `r1_data.py`: read or stage an event range of an R1 dataset.
 - `oracle_predictions.py`: truth-based predictions for an event range (the reference for model outputs).
 - `evaluate.py`: score predictions with the ACTS evaluator.
+- `quirk_rule.py`: quirk efficiencies under the quirk truth rule (Python, next to ACTS; below).
+- `ckf_predictions.py`: the ACTS tracks stored in a packaged dataset (`reco/tracks`: CKF track finding;
+  `reco/truth_tracks`: truth-seeded fits) as predictions, the Stage C baselines.
 - `tracking_core/`, `config/`: the ACTS evaluator and its geometry files, copied from ML-Tracking-Review
   (MIT; see `tracking_core/NOTICE` for what changed).
 
@@ -26,7 +29,9 @@ $PY tracking/evaluate.py --predictions-dir $PSCRATCH/quirk_tracking/pred_oracle 
 ```
 
 `--events A B` scores events A <= event_id < B. The predictions directory may hold more events than that, but
-must hold every event of the range, with one row per hit (`predicted_track_id` -1 when unassigned). `hit_id` is the
+must hold every event of the range, with one row per hit (`predicted_track_id` -1 when unassigned); a hit on several
+tracks gets one row per track (as in the evaluator's reference sample), the same hit twice on one track is an error.
+`hit_id` is the
 position of the hit in its event's lists in `reco/tracker_hits`. Columns: `event_id`, `hit_id`,
 `predicted_track_id`, `score` (NaN if unused), plus `meta.json` (see `tracking_core/schema.py`).
 
@@ -80,6 +85,32 @@ The per-event quirk counts are read from the ACTS writers after every event. `ch
 - a Python version of the matching rule gives the same matched quirks in every event.
 
 `evaluate.py` exits with an error if any check fails.
+
+## Quirk truth rule
+
+Release 1 (and so ACTS) gives each hit one particle: the first of the packaged hit's `particle_ids`. The rule
+(`quirk_rule.py`) reads the packaged list instead:
+
+- a hit belongs to quirk q if q is anywhere in its `particle_ids`; a hit with both quirks belongs to both;
+- a hit made only by quirk descendants (delta rays and other secondaries, found through `particles.parent_id`) is
+  quirk-secondary: it is in no particle's truth and does not count in a track's purity;
+- every other hit belongs to its first particle that is neither a quirk nor a quirk descendant.
+
+Matching keeps the ACTS double matching and majority step (ties as ACTS breaks them); the other quirk does not
+compete with q on a track where the two share a hit. Coupled efficiency treats the pair (union of both quirks' hits)
+as one particle. `evaluate.py --packaged-dataset PACKAGED_ROOT` adds `summary.json["quirk_rule"]`:
+`rule` (the rule) and `release1_labels` (the same code on Release 1 labels, which must equal the ACTS numbers event
+by event; checked), per working point `per_quirk_efficiency`, `quirk_event_efficiency`, `coupled_efficiency`, plus
+label counts. `quirk_rule.py` gives the same block for an existing evaluation without rerunning ACTS
+(`--acts-eval`, and `--acts-pair-eval` for the coupled check against an evaluation on the pair-truth copy from
+`make_pair_truth.py`). `oracle_predictions.py --variant rule_oracle --packaged ...` is the rule's oracle.
+
+Validation on m200 test 17000-19999 (six prediction sets: CKF tracks, truth-seeded fits, GNN v2, MaskFormer pair
+model, Release 1 oracle, rule oracle): with Release 1 labels the code equals ACTS in every event (per quirk at both
+working points; coupled against ACTS on the pair-truth copy for four of them); on the 505 events whose rule labels
+equal the Release 1 labels, the rule numbers equal ACTS; the rule oracle gives 1.000 per quirk and per event at both
+working points. Label counts there: 82847 quirk hits by first particle, 83689 under the rule, 1281 hits of both
+quirks, 11043 quirk-secondary hits.
 
 ## Validation (m400_L1000_mu0, events 0-3999)
 

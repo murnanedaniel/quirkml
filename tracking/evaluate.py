@@ -244,6 +244,10 @@ def main(argv=None):
     parser.add_argument("--staging-dir", type=Path, default=DEFAULT_STAGING,
                         help="where the sorted event-range copy of the dataset is written (reused when unchanged)")
     parser.add_argument("--keep-chunks", action="store_true", help="keep the per-chunk histogram pickles")
+    parser.add_argument("--packaged-dataset", type=Path,
+                        help="packaged dataset root of the same events (reco/tracker_hits with particle_ids lists, "
+                             "truth/particles with parent_id): adds the quirk truth rule scoring "
+                             "(summary.json['quirk_rule'], see quirk_rule.py)")
     args = parser.parse_args(argv)
     first, stop = args.events
     if stop <= first:
@@ -259,8 +263,11 @@ def main(argv=None):
     if missing:
         raise SystemExit(f"predictions lack {len(missing)} events of [{first}, {stop}), e.g. {missing[:10]}; "
                          "write one row per hit (predicted_track_id -1 when unassigned) for every event")
-    if preds.select(pl.struct("event_id", "hit_id").is_duplicated().any()).item():
-        raise SystemExit("predictions hold a (event_id, hit_id) pair more than once")
+    # A hit may be on several tracks (one row per track, as in the evaluator's reference sample); the same hit twice
+    # on one track is an error.
+    if preds.filter(pl.col("predicted_track_id") >= 0).select(
+            pl.struct("event_id", "hit_id", "predicted_track_id").is_duplicated().any()).item():
+        raise SystemExit("predictions hold a hit twice on the same track")
     predictions_meta = json.loads((args.predictions_dir / "meta.json").read_text())
 
     staged = stage_events(args.dataset, first, stop, args.staging_dir)
@@ -377,6 +384,12 @@ def main(argv=None):
             checks[point][f"{sel}_histogram_total_equals_selected"] = total == sum(pe["n_selected"][sel])
     per_event_df.write_parquet(args.out / "per_event.parquet")
     summary = build_summary(bundle, acts_summary, args, predictions_meta, per_event_df, checks)
+    if args.packaged_dataset is not None:
+        from quirk_rule import quirk_rule_block
+
+        summary["quirk_rule"] = quirk_rule_block(preds, staged, args.packaged_dataset, first, stop, per_event_df)
+        summary["quirk_rule"]["packaged_dataset"] = str(args.packaged_dataset.resolve())
+        checks["quirk_rule"] = {k: v for k, v in summary["quirk_rule"]["checks"].items() if isinstance(v, bool)}
     summary["wall_seconds"] = round(time.time() - t0, 1)
     (args.out / "summary.json").write_text(json.dumps(summary, indent=1) + "\n")
 
@@ -389,6 +402,11 @@ def main(argv=None):
         print(f"{point:10s} quirk track eff {_fmt(q)}  quirk event eff {_fmt(ev)}  technical eff {_fmt(t)}  "
               f"technical_sm eff {_fmt(sm)}  "
               f"fake {_num(summary['fake_rate'][point])}  dup {_num(summary['duplicate_rate'][point])}")
+    if "quirk_rule" in summary:
+        for point in WORKING_POINTS:
+            r = summary["quirk_rule"]["rule"][point]
+            print(f"{point:10s} quirk rule: per-quirk {_fmt(r['per_quirk_efficiency'])}  event "
+                  f"{_fmt(r['quirk_event_efficiency'])}  coupled {_fmt(r['coupled_efficiency'])}")
     print(f"prototracks/event {summary['prototracks_per_event']:.1f}; wrote {args.out / 'summary.json'} "
           f"({summary['wall_seconds']:.0f} s)")
     if failed:

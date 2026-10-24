@@ -10,6 +10,7 @@ is event first + k. hit_id = position of the hit in its event's lists.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -20,13 +21,15 @@ import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 OBJECTS = {"particles": ("truth", "particles"), "tracker_hits": ("reco", "tracker_hits")}
+#: Objects of the packaged layout only (not staged): ACTS tracks, truth-seeded fits.
+PACKAGED_OBJECTS = {"tracks": ("reco", "tracks"), "truth_tracks": ("reco", "truth_tracks")}
 QUIRK_PDG = 10000100
 _RANGE = re.compile(r"events(\d+)-(\d+)\.parquet$")
 
 
 def object_files(root: Path | str, obj: str) -> list[tuple[int, int, Path]]:
     """[(first, last, path)] of one object directory, sorted by first event (last inclusive)."""
-    directory = Path(root).joinpath(*OBJECTS[obj])
+    directory = Path(root).joinpath(*{**OBJECTS, **PACKAGED_OBJECTS}[obj])
     files = []
     for path in directory.glob("*.parquet"):
         match = _RANGE.search(path.name)
@@ -69,10 +72,13 @@ def _source_stamp(root: Path, first: int, stop: int) -> dict:
 
 def stage_events(root: Path | str, first: int, stop: int, staging_root: Path | str) -> Path:
     """Write events [first, stop) of `root`, sorted by event_id, to
-    <staging_root>/<dataset name>/events<first>-<stop-1>/{truth/particles,reco/tracker_hits}/ (one file each) and
+    <staging_root>/<dataset name>_<hash of its path>/events<first>-<stop-1>/{truth/particles,reco/tracker_hits}/ (one file each) and
     return that directory. Reuses an existing staging whose manifest matches the source files (path, size, mtime)."""
     root = Path(root).resolve()
-    out = Path(staging_root) / root.name / f"events{first}-{stop - 1}"
+    # The directory name carries a hash of the source path: two datasets with the same name (e.g. a relabelled copy
+    # such as the pair truth) must not share, and overwrite, one staging copy.
+    tag = hashlib.sha1(str(root).encode()).hexdigest()[:8]
+    out = Path(staging_root) / f"{root.name}_{tag}" / f"events{first}-{stop - 1}"
     manifest = out / "manifest.json"
     stamp = {"source": str(root), "first": first, "stop": stop, "files": _source_stamp(root, first, stop)}
     if manifest.exists() and json.loads(manifest.read_text()) == stamp:
