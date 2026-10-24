@@ -18,7 +18,7 @@ import torch
 import torch.nn.functional as F
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import (EdgeFilter, lrt_weights, Embedder, radius_graph, Logger, edge_counts, edge_truth, hit_features, load_events, lr_at,  # noqa: E402
+from common import (EdgeFilter, lrt_weights, DIRECTION, N_DIR_NODE, N_DIR_EDGE, N_FEAT, dir_edge_features, node_inputs, Embedder, radius_graph, Logger, edge_counts, edge_truth, hit_features, load_events, lr_at,  # noqa: E402
                     read_graphs, summarize_counts, write_graphs)
 
 DEV = "cuda"
@@ -66,10 +66,24 @@ def prep(ev, g):
     return s, t, torch.as_tensor(y, device=DEV).float(), torch.as_tensor(w, device=DEV)
 
 
+def extra(ev, s, t):
+    return dir_edge_features(ev, s, t, DEV) if DIRECTION["on"] else None
+
+
+def build_model(hidden, layers):
+    d = DIRECTION["on"]
+    return EdgeFilter(n_in=N_FEAT + (N_DIR_NODE if d else 0), hidden=hidden, n_layers=layers,
+                      n_edge_extra=N_DIR_EDGE if d else 0).to(DEV)
+
+
 def scores(model, ev, s, t, chunk=1_000_000):
-    f = hit_features(ev, DEV)
+    f = node_inputs(ev, DEV)
+    out = []
     with torch.autocast("cuda", dtype=torch.bfloat16):
-        return torch.cat([model(f, s[i:i + chunk], t[i:i + chunk]).float() for i in range(0, s.numel(), chunk)])
+        for i in range(0, s.numel(), chunk):
+            ss, tt = s[i:i + chunk], t[i:i + chunk]
+            out.append(model(f, ss, tt, extra(ev, ss, tt)).float())
+    return torch.cat(out) if out else torch.zeros(0, device=DEV)
 
 
 @torch.no_grad()
@@ -97,9 +111,9 @@ def train(a):
     tr = [e for e in tr if e["event_id"] in g]
     va = [e for e in va if e["event_id"] in g]
     print(f"train {len(tr)} val {len(va)} events", flush=True)
-    torch.manual_seed(0)
-    random.seed(0)
-    model = EdgeFilter(hidden=a.hidden, n_layers=a.layers).to(DEV)
+    torch.manual_seed(a.seed)
+    random.seed(a.seed)
+    model = build_model(a.hidden, a.layers)
     opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=1e-4)
     spe = len(tr) // a.batch
     total = spe * a.epochs
@@ -120,7 +134,7 @@ def train(a):
                     k = torch.randperm(s.numel(), device=DEV)[: a.max_edges]
                     s, t, y, w = s[k], t[k], y[k], w[k]
                 with torch.autocast("cuda", dtype=torch.bfloat16):
-                    lo = model(hit_features(ev, DEV), s, t).float()
+                    lo = model(node_inputs(ev, DEV), s, t, extra(ev, s, t)).float()
                 loss = loss + (F.binary_cross_entropy_with_logits(lo, y, reduction="none", pos_weight=pw) * w).sum() / w.sum() / a.batch
             opt.zero_grad(set_to_none=True)
             loss.backward()
@@ -149,7 +163,8 @@ def train(a):
 @torch.no_grad()
 def apply(a):
     cfg = json.load(open(os.path.join(a.out, "config.json")))
-    model = EdgeFilter(hidden=cfg["hidden"], n_layers=cfg["layers"]).to(DEV)
+    DIRECTION["on"] = bool(cfg.get("direction", False))
+    model = build_model(cfg["hidden"], cfg["layers"])
     model.load_state_dict(torch.load(os.path.join(a.out, "best.pt")))
     model.eval()
     gdir = os.path.join(a.out, f"graphs_cut{a.cut:g}")
@@ -196,6 +211,8 @@ def main():
     ap.add_argument("--pos-weight", type=float, default=2.0)
     ap.add_argument("--quirk-weight", type=float, default=1.0)
     ap.add_argument("--recipe", choices=["all", "lrt"], default="all")
+    ap.add_argument("--direction", action="store_true", help="Stage E cluster direction node + edge features")
+    ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--w-qq", type=float, default=1.0)
     ap.add_argument("--cuts", type=float, nargs="+", default=[0.05, 0.2, 0.5])
     ap.add_argument("--scan", type=float, nargs="+", default=[0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5])
@@ -206,6 +223,7 @@ def main():
     global QW
     QW = a.quirk_weight
     RECIPE.update(name=a.recipe, w_qq=a.w_qq)
+    DIRECTION["on"] = a.direction
     train(a) if a.mode == "train" else apply(a)
 
 

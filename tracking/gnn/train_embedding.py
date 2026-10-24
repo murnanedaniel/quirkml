@@ -23,7 +23,7 @@ from common import (Embedder, Logger, edge_counts, edge_truth, hit_features, loa
 DEV = "cuda"
 
 
-RECIPE = {"name": "all", "w_qq": 1.0}
+RECIPE = {"name": "all", "w_qq": 1.0, "quirk_pos_weight": 1.0}
 
 
 def event_loss(model, ev, margin, k_hard, n_rand_per_hit):
@@ -61,7 +61,11 @@ def event_loss(model, ev, margin, k_hard, n_rand_per_hit):
             wn[hq[ns] & hq[nd]] = RECIPE["w_qq"]
     dpos = (emb[ch[0]] - emb[ch[1]]).pow(2).sum(1)
     dneg = (emb[ns] - emb[nd]).pow(2).sum(1).clamp_min(1e-12).sqrt()
-    lpos = dpos.mean() if dpos.numel() else emb.sum() * 0
+    if not lrt and RECIPE["quirk_pos_weight"] != 1.0 and dpos.numel():  # quirk chain pairs up-weighted
+        wp = torch.where(hq[ch[0]], RECIPE["quirk_pos_weight"], 1.0)
+        lpos = (dpos * wp).sum() / wp.sum()
+    else:
+        lpos = dpos.mean() if dpos.numel() else emb.sum() * 0
     lneg = (torch.relu(margin - dneg).pow(2) * wn).sum() / wn.sum()
     return lpos, lneg
 
@@ -195,10 +199,11 @@ def main():
     ap.add_argument("--ranges", nargs="+", default=[])
     ap.add_argument("--recipe", choices=["all", "lrt"], default="all")
     ap.add_argument("--w-qq", type=float, default=1.0, help="lrt: weight of negatives joining the two quirks")
+    ap.add_argument("--quirk-pos-weight", type=float, default=1.0, help="recipe all: weight of quirk chain pairs among positives")
     a = ap.parse_args()
     a.emb_dim = a.emb_dim
     os.makedirs(a.out, exist_ok=True)
-    RECIPE.update(name=a.recipe, w_qq=a.w_qq)
+    RECIPE.update(name=a.recipe, w_qq=a.w_qq, quirk_pos_weight=a.quirk_pos_weight)
     train(a) if a.mode == "train" else graph(a)
 
 

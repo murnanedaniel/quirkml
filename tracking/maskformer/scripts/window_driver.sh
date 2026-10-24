@@ -6,7 +6,7 @@ set -uo pipefail
 MF=/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirkml/tracking/maskformer
 OUT=/pscratch/sd/d/danieltm/quirk_tracking/maskformer
 HOURS=$OUT/gpu_hours.txt
-MAINT=$(date -d 2026-10-21T05:30 +%s)
+MAINT=$(date -d "${MAINT_AT:-2099-01-01T00:00}" +%s)  # next maintenance start (MAINT_AT env)
 log() { echo "[driver] $(date -Is) $*"; }
 done_lane() { [ -f $OUT/runs/$1/TRAIN_DONE ] && [ -f $OUT/runs/$1/EVAL_DONE ]; }
 while true; do

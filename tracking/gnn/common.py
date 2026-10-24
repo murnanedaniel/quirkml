@@ -63,6 +63,53 @@ def hit_features(ev, device):
     return f
 
 
+# ----------------------------------------------------------------------------- cluster direction (Stage E)
+DIRECTION = {"on": False}
+N_DIR_NODE, N_DIR_EDGE = 4, 5
+
+
+def dir_node_features(ev, device):
+    """[N, 4]: phi_angle_abs, eta_angle_abs (0 where NaN), |diag_sign|, axis-available flag (0 on long strips)."""
+    dphi = torch.nan_to_num(torch.as_tensor(ev["dphi"], device=device), nan=0.0)
+    deta = torch.nan_to_num(torch.as_tensor(ev["deta"], device=device), nan=0.0)
+    diag = torch.as_tensor(ev["diag"], device=device).abs().float()
+    ok = torch.isfinite(torch.as_tensor(ev["axa"][:, 0], device=device)).float()
+    return torch.stack([dphi, deta, diag, ok], 1)
+
+
+def node_inputs(ev, device):
+    f = hit_features(ev, device)
+    if DIRECTION["on"]:
+        f = torch.cat([f, dir_node_features(ev, device)], 1)
+    return f
+
+
+def _line_angle(u, v):
+    """Angle between two lines (no orientation), radians in [0, pi/2]; u, v [E, 3]."""
+    c = (u * v).sum(1).abs() / (u.norm(dim=1) * v.norm(dim=1)).clamp_min(1e-9)
+    return torch.arccos(c.clamp(max=1.0))
+
+
+def dir_edge_features(ev, src, dst, device):
+    """[E, 5] for edge i->j with displacement d: smallest line angle between d and hit i's two axis candidates, the
+    same for hit j, smallest angle between the candidates of i and of j (all / (pi/2)); availability flags of i and j.
+    Angles are 0 where the axis is unavailable (long strips; the flag is 0 there)."""
+    pos = torch.stack([torch.as_tensor(ev[c], device=device) for c in "xyz"], 1)
+    A = torch.as_tensor(ev["axa"], device=device)
+    B = torch.as_tensor(ev["axb"], device=device)
+    d = pos[dst] - pos[src]
+    ai = torch.minimum(_line_angle(d, A[src]), _line_angle(d, B[src]))
+    aj = torch.minimum(_line_angle(d, A[dst]), _line_angle(d, B[dst]))
+    aij = torch.stack([_line_angle(A[src], A[dst]), _line_angle(A[src], B[dst]),
+                       _line_angle(B[src], A[dst]), _line_angle(B[src], B[dst])], 0).min(0).values
+    oki = torch.isfinite(A[src, 0])
+    okj = torch.isfinite(A[dst, 0])
+    k = 2.0 / math.pi
+    z = torch.zeros_like(ai)
+    return torch.stack([torch.where(oki, ai * k, z), torch.where(okj, aj * k, z),
+                        torch.where(oki & okj, aij * k, z), oki.float(), okj.float()], 1)
+
+
 def pair_features(f, src, dst):
     """Hand-made geometric pair features: dr, dphi (wrapped), dz, deta, 3D distance."""
     r1, r2 = f[src, 0], f[dst, 0]
@@ -123,12 +170,15 @@ class Embedder(nn.Module):
 
 
 class EdgeFilter(nn.Module):
-    def __init__(self, n_in=N_FEAT, hidden=512, n_layers=3):
+    def __init__(self, n_in=N_FEAT, hidden=512, n_layers=3, n_edge_extra=0):
         super().__init__()
-        self.net = mlp(2 * n_in + 5, hidden, 1, n_layers)
+        self.net = mlp(2 * n_in + 5 + n_edge_extra, hidden, 1, n_layers)
 
-    def forward(self, f, src, dst):
-        return self.net(torch.cat([f[src], f[dst], pair_features(f, src, dst)], 1)).squeeze(-1)
+    def forward(self, f, src, dst, extra=None):
+        parts = [f[src], f[dst], pair_features(f, src, dst)]
+        if extra is not None:
+            parts.append(extra)
+        return self.net(torch.cat(parts, 1)).squeeze(-1)
 
 
 class InteractionGNN(nn.Module):
@@ -280,7 +330,10 @@ def edge_counts(ev, src, dst, device):
     q = torch.as_tensor(q, device=device)
     tech = torch.as_tensor(tech, device=device)
     hq = torch.as_tensor(ev["hit_quirk"], device=device)
-    return dict(edges=int(src.numel()), true=int(is_true.sum()), samepid=int(same.sum()),
+    pos = torch.stack([torch.as_tensor(ev[c], device=device) for c in "xyz"], 1)
+    longq = q & ((pos[ch[0]] - pos[ch[1]]).norm(dim=1) > 150.0)
+    return dict(chain_quirk_long=int(longq.sum()), found_quirk_long=int((found & longq).sum()),
+                edges=int(src.numel()), true=int(is_true.sum()), samepid=int(same.sum()),
                 chain_all=int(ck.numel()), found_all=int(found.sum()),
                 chain_quirk=int(q.sum()), found_quirk=int((found & q).sum()),
                 chain_tech=int(tech.sum()), found_tech=int((found & tech).sum()),
@@ -297,6 +350,7 @@ def summarize_counts(cs, prefix=""):
             prefix + "purity": s["true"] / max(s["edges"], 1),
             prefix + "pid_purity": s["samepid"] / max(s["edges"], 1),
             prefix + "purity_quirk": s["quirk_true"] / max(s["quirk_touch"], 1),
+            prefix + "eff_quirk_step_gt150": s["found_quirk_long"] / max(s["chain_quirk_long"], 1),
             prefix + "quirk_touch_edges_per_event": s["quirk_touch"] / ne}
 
 

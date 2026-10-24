@@ -7,7 +7,7 @@ set -uo pipefail
 LONG=$1; LSTEPS=$2; LVCI=$3; shift 3
 MF=/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirkml/tracking/maskformer
 OUT=/pscratch/sd/d/danieltm/quirk_tracking/maskformer
-MAINT=$(date -d 2026-10-21T05:30 +%s)
+MAINT=$(date -d "${MAINT_AT:-2099-01-01T00:00}" +%s)  # next maintenance start (MAINT_AT env)
 log() { echo "[pair] $(date -Is) $*"; }
 NOENV() { env $(env | grep -o '^SLURM_[A-Z_]*' | sed 's/^/-u /') "$@"; }
 done_lane() { [ -f $OUT/runs/$1/TRAIN_DONE ] && [ -f $OUT/runs/$1/EVAL_DONE ]; }

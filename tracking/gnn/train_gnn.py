@@ -20,7 +20,7 @@ import torch
 import torch.nn.functional as F
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import (InteractionGNN, lrt_weights, Logger, edge_counts, edge_truth, hit_features, load_events, lr_at,  # noqa: E402
+from common import (InteractionGNN, lrt_weights, DIRECTION, N_DIR_NODE, N_DIR_EDGE, N_FEAT, dir_edge_features, node_inputs, Logger, edge_counts, edge_truth, hit_features, load_events, lr_at,  # noqa: E402
                     pair_features, read_graphs, summarize_counts, write_graphs)
 
 DEV = "cuda"
@@ -39,7 +39,7 @@ def batch(evs, graphs, with_truth=True):
     fs, ss, ts, efs, ys, ws, off = [], [], [], [], [], [], 0
     for ev in evs:
         g = graphs[ev["event_id"]]
-        f = hit_features(ev, DEV)
+        f = node_inputs(ev, DEV)
         if CLUSTER == "none":
             f[:, CL] = 0
         s = torch.as_tensor(g["src"], device=DEV).long()
@@ -48,6 +48,8 @@ def batch(evs, graphs, with_truth=True):
         ef = [pair_features(f, s, t), sc[:, None]]
         if CLUSTER == "node_edge":
             ef.append(f[t, CL] - f[s, CL])
+        if DIRECTION["on"]:
+            ef.append(dir_edge_features(ev, s, t, DEV))
         efs.append(torch.cat(ef, 1))
         if with_truth:
             y, w = edge_truth(ev, g["src"], g["dst"])
@@ -106,6 +108,12 @@ def track_val(model, events, graphs):
     return vt.at_fake(rows, RECIPE["fake_target"]), rows
 
 
+def build_model(hidden, n_iter, layers):
+    d = DIRECTION["on"]
+    return InteractionGNN(n_in=N_FEAT + (N_DIR_NODE if d else 0), n_edge_in=N_EDGE_IN[CLUSTER] + (N_DIR_EDGE if d else 0),
+                          hidden=hidden, n_iter=n_iter, n_layers=layers).to(DEV)
+
+
 def train(a):
     tr = load_events(a.cache, *a.train)
     va = load_events(a.cache, *a.val)[: a.n_val]
@@ -113,9 +121,9 @@ def train(a):
     tr = [e for e in tr if e["event_id"] in g]
     va = [e for e in va if e["event_id"] in g]
     print(f"train {len(tr)} val {len(va)} events", flush=True)
-    torch.manual_seed(0)
-    random.seed(0)
-    model = InteractionGNN(n_edge_in=N_EDGE_IN[CLUSTER], hidden=a.hidden, n_iter=a.n_iter, n_layers=a.layers).to(DEV)
+    torch.manual_seed(a.seed)
+    random.seed(a.seed)
+    model = build_model(a.hidden, a.n_iter, a.layers)
     print("params", sum(p.numel() for p in model.parameters()), flush=True)
     opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=1e-4)
     spe = len(tr) // a.batch
@@ -191,8 +199,8 @@ def infer(a):
     cfg = json.load(open(os.path.join(a.out, "config.json")))
     global CLUSTER
     CLUSTER = cfg.get("cluster", "node")
-    model = InteractionGNN(n_edge_in=N_EDGE_IN[CLUSTER], hidden=cfg["hidden"], n_iter=cfg["n_iter"],
-                           n_layers=cfg["layers"]).to(DEV)
+    DIRECTION["on"] = bool(cfg.get("direction", False))
+    model = build_model(cfg["hidden"], cfg["n_iter"], cfg["layers"])
     model.load_state_dict(torch.load(os.path.join(a.out, a.ckpt)))
     model.eval()
     print("checkpoint", a.ckpt, flush=True)
@@ -225,8 +233,8 @@ def select(a):
     cfg = json.load(open(os.path.join(a.out, "config.json")))
     global CLUSTER
     CLUSTER = cfg.get("cluster", "node")
-    model = InteractionGNN(n_edge_in=N_EDGE_IN[CLUSTER], hidden=cfg["hidden"], n_iter=cfg["n_iter"],
-                           n_layers=cfg["layers"]).to(DEV)
+    DIRECTION["on"] = bool(cfg.get("direction", False))
+    model = build_model(cfg["hidden"], cfg["n_iter"], cfg["layers"])
     va = load_events(a.cache, *a.val)[: a.n_track_val]
     g = read_graphs(a.graphs, a.val[0], a.val[1])
     va = [e for e in va if e["event_id"] in g]
@@ -264,6 +272,8 @@ def main():
     ap.add_argument("--pos-weight", type=float, default=1.0)
     ap.add_argument("--quirk-weight", type=float, default=1.0)
     ap.add_argument("--recipe", choices=["all", "lrt"], default="all")
+    ap.add_argument("--direction", action="store_true", help="Stage E cluster direction node + edge features")
+    ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--w-qq", type=float, default=0.1, help="lrt: weight of wrong edges joining the two quirks")
     ap.add_argument("--track-val", action="store_true", help="per-epoch track-level val; selects best_trk.pt")
     ap.add_argument("--n-track-val", type=int, default=200)
@@ -278,6 +288,7 @@ def main():
     QW = a.quirk_weight
     CLUSTER = a.cluster
     RECIPE.update(name=a.recipe, w_qq=a.w_qq, fake_target=a.fake_target)
+    DIRECTION["on"] = a.direction
     {"train": train, "infer": infer, "select": select}[a.mode](a)
 
 
