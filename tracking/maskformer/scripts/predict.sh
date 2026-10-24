@@ -5,7 +5,7 @@
 # RUN_CONFIG: the resolved config.yaml saved in the training run's log dir
 # (it is the truth for what ran). Events are inclusive event_id bounds.
 set -euo pipefail
-RUN_CONFIG=$1; CKPT=$2; OUT=$3; A=$4; B=$5; OT=${6:-0.1}; MT=${7:-0.5}
+RUN_CONFIG=$1; CKPT=$2; OUT=$3; A=$4; B=$5; OT=${6:-0.1}; MT=${7:-0.5}; ASSIGN=${ASSIGN:-mask}
 HERE=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$OUT"; OUT=$(cd "$OUT" && pwd)
 cat > "$OUT/predict_overlay.yaml" <<YML
@@ -23,6 +23,7 @@ trainer:
         out_dir: $OUT
         object_threshold: $OT
         mask_threshold: $MT
+        assignment: $ASSIGN
 YML
 exec bash "$HERE/run.sh" predict --config "$RUN_CONFIG" --config "$OUT/predict_overlay.yaml" \
   --ckpt_path "$CKPT" --return_predictions false --trainer.default_root_dir "$OUT/logs_$(date +%Y%m%dT%H%M%S)"

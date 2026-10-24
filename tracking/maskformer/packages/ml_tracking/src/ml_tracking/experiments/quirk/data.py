@@ -69,8 +69,12 @@ class QuirkTrackingDataset(Dataset):
         quirk_min_num_sihit: int = 1,
         cluster_features: bool = False,
         row_group_cache_size: int = 64,
+        quirk_pair_target: bool = False,
+        direction_dir: str | None = None,
     ):
         super().__init__()
+        self.quirk_pair_target = bool(quirk_pair_target)
+        self.direction_dir = Path(direction_dir) if direction_dir else None
         self.root = Path(dataset_root)
         self.event_range = _normalize_range("event_range", event_range)
         self.event_max_num_particles = int(event_max_num_particles)
@@ -96,6 +100,8 @@ class QuirkTrackingDataset(Dataset):
         # event_id -> (path, row_group, row_in_group) for both collections.
         self.particle_loc = self._index(sorted(particle_dir.glob("*.parquet")))
         self.hit_loc = self._index(sorted(hit_dir.glob("*.parquet")))
+        # Optional offline cluster-direction features (quirkml/tracking/direction), same hit order as tracker_hits.
+        self.dir_loc = self._index(sorted(self.direction_dir.glob("*.parquet"))) if self.direction_dir else None
         start, end = self.event_range
         ids = sorted(e for e in self.particle_loc if start <= e <= end)
         missing = [e for e in ids if e not in self.hit_loc]
@@ -132,6 +138,36 @@ class QuirkTrackingDataset(Dataset):
                 self._cache.popitem(last=False)
         self._cache.move_to_end(key)
         return self._cache[key][row]
+
+    DIRECTION_COLUMNS = ("event_id", "axis_a_x", "axis_a_y", "axis_a_z", "axis_b_x", "axis_b_y", "axis_b_z",
+                         "phi_angle_abs", "eta_angle_abs", "diag_sign")
+
+    def _direction_features(self, event_id: int, n_hits: int) -> dict[str, torch.Tensor]:
+        """Sign- and mirror-invariant encoding of the cluster axis candidates a, b (unit vectors, each defined up
+        to sign): M = (aa^T + bb^T)/2 and D = diag_sign * (aa^T - bb^T)/2 (6 unique entries each; diag_sign
+        selects the right candidate when nonzero, D = 0 when undetermined), plus diag_sign, phi/eta_angle_abs and a
+        validity flag. NaN (long strips) -> 0 with valid = 0."""
+        r = self._read(self.dir_loc[event_id], self.DIRECTION_COLUMNS)
+        if int(r["event_id"]) != event_id:
+            raise ValueError(f"direction event_id mismatch at {event_id}")
+        a = np.stack([np.asarray(r[f"axis_a_{c}"], dtype=np.float32) for c in "xyz"], 1)
+        b = np.stack([np.asarray(r[f"axis_b_{c}"], dtype=np.float32) for c in "xyz"], 1)
+        if len(a) != n_hits:
+            raise ValueError(f"direction features have {len(a)} hits, tracker_hits {n_hits} (event {event_id})")
+        sign = np.asarray(r["diag_sign"], dtype=np.float32)
+        valid = np.isfinite(a).all(1) & np.isfinite(b).all(1)
+        a = np.nan_to_num(a); b = np.nan_to_num(b)
+        iu = [(0, 0), (1, 1), (2, 2), (0, 1), (0, 2), (1, 2)]
+        out = {}
+        for k, (i, j) in enumerate(iu):
+            aa, bb = a[:, i] * a[:, j], b[:, i] * b[:, j]
+            out[f"sihit_dir_m{k}"] = torch.from_numpy(0.5 * (aa + bb))
+            out[f"sihit_dir_d{k}"] = torch.from_numpy(0.5 * sign * (aa - bb))
+        out["sihit_dir_sign"] = torch.from_numpy(sign)
+        out["sihit_dir_phi"] = torch.from_numpy(np.nan_to_num(np.asarray(r["phi_angle_abs"], dtype=np.float32)))
+        out["sihit_dir_eta"] = torch.from_numpy(np.nan_to_num(np.asarray(r["eta_angle_abs"], dtype=np.float32)))
+        out["sihit_dir_valid"] = torch.from_numpy(valid.astype(np.float32))
+        return out
 
     def __len__(self) -> int:
         return len(self.event_ids)
@@ -206,6 +242,8 @@ class QuirkTrackingDataset(Dataset):
             "sihit_valid": torch.ones(n_hits, dtype=torch.bool),
             "sihit_original_hit_id": torch.arange(n_hits, dtype=torch.int64),
         }
+        if self.dir_loc is not None:
+            inputs.update(self._direction_features(event_id, n_hits))
         if self.cluster_features:
             # Counts / charge are heavy-tailed: log1p. Angles are passed as stored.
             for col in ("size_loc0", "size_loc1", "n_channels", "sum_activation"):
@@ -216,15 +254,27 @@ class QuirkTrackingDataset(Dataset):
         # ---- targets (fixed size event_max_num_particles)
         P = self.event_max_num_particles
         tgt_pid = particles["particle_id"].astype(np.int64)[idx]
+        m_np = tgt_pid[:, None] == hit_pid[None, :]
+        q_np = quirk[idx].copy()
+        pt_np = np.hypot(particles["px"], particles["py"])[idx].astype(np.float32)
+        if self.quirk_pair_target:
+            # One object for the quirk pair: the union of both quirks' hits (ordinary targets unchanged).
+            qi = np.nonzero(q_np)[0]
+            if len(qi) >= 2:
+                m_np[qi[0]] = m_np[qi].any(0)
+                keep = np.ones(len(tgt_pid), dtype=bool)
+                keep[qi[1:]] = False
+                tgt_pid, m_np, q_np, pt_np = tgt_pid[keep], m_np[keep], q_np[keep], pt_np[keep]
+        n_all = len(tgt_pid)
         valid = torch.zeros(P, dtype=torch.bool)
         valid[:n_all] = True
         mask = torch.zeros(P, n_hits, dtype=torch.bool)
         if n_all:
-            mask[:n_all] = torch.from_numpy(tgt_pid[:, None] == hit_pid[None, :])
+            mask[:n_all] = torch.from_numpy(m_np)
         is_quirk = torch.zeros(P, dtype=torch.bool)
-        is_quirk[:n_all] = torch.from_numpy(quirk[idx])
+        is_quirk[:n_all] = torch.from_numpy(q_np)
         pt = torch.zeros(P)
-        pt[:n_all] = torch.from_numpy(np.hypot(particles["px"], particles["py"])[idx].astype(np.float32))
+        pt[:n_all] = torch.from_numpy(pt_np)
         targets = {
             "event_id": torch.tensor(event_id, dtype=torch.int64),
             "particle_valid": valid,
@@ -279,6 +329,8 @@ class QuirkDataModule(LightningDataModule):
         quirk_min_num_sihit: int = 1,
         cluster_features: bool = False,
         row_group_cache_size: int = 64,
+        quirk_pair_target: bool = False,
+        direction_dir: str | None = None,
     ):
         super().__init__()
         if batch_size < 1:
@@ -311,6 +363,8 @@ class QuirkDataModule(LightningDataModule):
             "quirk_min_num_sihit": quirk_min_num_sihit,
             "cluster_features": cluster_features,
             "row_group_cache_size": row_group_cache_size,
+            "quirk_pair_target": quirk_pair_target,
+            "direction_dir": direction_dir,
         }
 
     def _make(self, split: str) -> QuirkTrackingDataset:

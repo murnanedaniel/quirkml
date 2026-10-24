@@ -50,7 +50,8 @@ if [ -f $R/TRAIN_DONE ] && [ ! -f $R/EVAL_DONE ]; then
     echo "$BEST" > $P/ckpt_used.txt
     (cd $Q && $EVPY tracking/evaluate.py --predictions-dir $P --dataset $ROOT --events 16000 17000 \
        --out $OUT/eval/${TAG}_val_ot$OT --jobs 16 --staging-dir $OUT/staging_$TAG) > $OUT/logs/eval_${TAG}_val_ot$OT.log 2>&1 || { ok=0; log "eval failed ot=$OT"; continue; }
-    log "ot=$OT $(grep -e '^very_loose' $OUT/logs/eval_${TAG}_val_ot$OT.log)"
+    $PY $MF/scripts/coupled_eval.py $P $ROOT 16000 17000 $OUT/eval/${TAG}_val_ot$OT/coupled.json > /dev/null 2>&1
+    log "ot=$OT $(grep -e '^very_loose' $OUT/logs/eval_${TAG}_val_ot$OT.log) coupled $(cat $OUT/eval/${TAG}_val_ot$OT/coupled.json 2>/dev/null | tr -d '\n ')"
   done
   [ $ok = 1 ] && touch $R/EVAL_DONE
 fi

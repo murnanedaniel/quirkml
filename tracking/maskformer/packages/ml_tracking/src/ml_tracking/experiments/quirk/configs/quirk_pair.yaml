@@ -1,0 +1,3 @@
+# Stage D task 3 (Daniel): the quirk PAIR is one target object (union of both quirks hits); ordinary tracks unchanged.
+data:
+  quirk_pair_target: true

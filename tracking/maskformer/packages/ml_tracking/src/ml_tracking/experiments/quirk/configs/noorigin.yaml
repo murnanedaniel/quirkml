@@ -1,0 +1,24 @@
+# Stage D ablation (ii): no origin-referenced features. Hit inputs are x, y, z, r, layer_id and the cluster-shape
+# columns (log1p of size_loc0, size_loc1, n_channels, sum_activation; eta_angle/phi_angle are all zero in the data
+# and are left out). Dropped: s, eta, phi as features and the (r, eta, phi) positional encoding. phi is still the
+# sort key (no effect with full attention).
+data:
+  cluster_features: true
+model:
+  model:
+    init_args:
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: ml_tracking.models.InputNet
+              init_args:
+                input_name: sihit
+                fields: [x, y, z, r, layer_id, log_size_loc0, log_size_loc1, log_n_channels, log_sum_activation]
+                net:
+                  class_path: ml_tracking.models.Dense
+                  init_args:
+                    input_size: 9
+                    hidden_layers: [128]
+                    output_size: 256
+                    activation: SwiGLU
