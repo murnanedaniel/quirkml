@@ -31,6 +31,23 @@ GNN v2 (all tracks) 0.728 per-quirk at fake 0.107; LRT-style quirk weighting wor
 - E. Separation work (hit direction, pair-aware track building, edge-geo/flex-geo on the quirk graph).
 - F. Grid generalisation maps on the 104 test sets, then training on the grid.
 
+## Results so far under the revised order (2026-10-23)
+
+- A1 done: the quirk pair-production crash is a Geant4 11.3 table-naming bug; the effect of pair production is
+  ~3e-5 of ionisation; template now EnablePairProduction: false; the 105 failed runs rerun with it (same physics).
+- A2: ACTS never fills the cluster direction columns; offline cluster-shape features built for m200_L774_mu0
+  (tracking/direction/). In the GNN they give +0.5 points per-quirk (within seed noise); in MaskFormer +0.02.
+- A3: truth rule proposed (a hit belongs to a quirk if the quirk is anywhere in particle_ids; both quirks share
+  shared hits; quirk-only-secondary hits excluded from truth and fakes); not yet wired into converter/evaluator.
+- D: both methods find the quirk pair but do not separate it. GNN tracks switch quirk where the two are within
+  ~10 mm (median 8.4 mm at a switch). MaskFormer per-quirk masks merge the two quirks (train = val).
+- Coupled task (pair as one object, ACTS on pair truth, test 17000-19999): MaskFormer trained with the pair as
+  target 0.859 at fake 0.068 (tight 0.31); GNN v2 (per-quirk training) 0.606. A GNN trained for the pair is
+  running (fair comparison).
+- Per-quirk task: GNN v2 0.728 at fake 0.107 (tight 0.07); MaskFormer 0.17-0.19.
+- Next: separability ceiling (how separable are the two quirks with ideal local information), GNN pair target,
+  MaskFormer pair seeds + direction + long run, ACTS baseline (Stage C), truth rule in the evaluator, then the grid.
+
 ## T0. Done (2026-10-15/16)
 
 - Data: m200 Lambda 774 eV mu 0, 20k events (train 0-15999, val 16000-16999, test 17000-19999); pilots; cost study.
