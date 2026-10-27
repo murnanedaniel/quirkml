@@ -764,3 +764,49 @@ with the floor above. Fail = chi2 more than 9 above the better of the two starts
   it; a global method would be needed for a statement there.
 - Shared hits (2.5% of hits carry more than one particle) are kept for both quirks; vertex free, no beam-spot
   constraint, no recoil constraint.
+
+## GNN data scaling (2026-10-27), PAUSED: the stopping rule makes these arms uninformative
+
+Question: does the GNN improve with more training events than the 16k used so far? Data: m200_L774_mu0 v1 1M-event
+package; training sets nested (16k = events 0-15999; 50k adds 20000-53999; 150k adds 20000-153999); val 16000-16999,
+test 17000-19999 untouched. Cluster-direction features were rebuilt for events 20000-153999 by re-digitising the kept
+edm4hep (every hit identical to production in all 134 blocks; CFS quirk_tracking_data/direction/
+m200_L774_mu0_events20000-153999), so every arm keeps the direction inputs and the existing 16k models are the
+controls. Graph models are the 16k ones, inference only (graph v3: g1_qw10 embedding + g1f_qw10r075_q50 filter; pair
+arm: v1 embedding + e2_pair_dir_s0 filter). Training: streamed trainer (tracking/gnn/scaling/train_gnn_stream.py,
+same model / loss / features as train_gnn.py, 0.40 s per step as before), common budget rule of the GNN and MaskFormer
+studies: stop when the strict val efficiency (per-quirk: walk + stitch 0.7, >= 4 hits; coupled: components 0.5,
+>= 4 hits on the pair cache) has not improved for 3 validation points (every 4000 steps, all 1000 val events), cap
+4 x 64k = 256k steps, cosine LR over the cap; test once on the best-val checkpoint. The in-training strict metric
+equals the ACTS strict numbers (g2-v3-dir-s0 test: 0.7456 / 0.0981 / fake 0.1175 both ways). Test: strict ACTS as in
+the "Strict matching" section; pair arms at the components cut chosen on val by the p3 rule (0.5 for every arm).
+Outputs /pscratch/sd/d/danieltm/quirk_tracking/scaling/ (scaling_results.{csv,md,png}, runs/, eval/, STATE.md).
+
+| ID | Task | Training events | Steps run / best-val step | LR at stop (fraction of peak) | Test strict loose / tight | Fake (strict) | technical_sm (strict) | Val strict loose / tight |
+|---|---|---|---|---|---|---|---|---|
+| gnn-e2-pair-dir, 3 seeds (control) | coupled | 16k | 64k (cosine to 0) / last | 0 | 0.944 +- 0.003 / 0.687 +- 0.006 | 0.079 | 0.986 | 0.947 / 0.703 |
+| scal-p-16k-s0 | coupled | 16k | 40k / 28k | 0.94 | 0.925 / 0.624 | 0.096 | 0.977 | 0.933 / 0.627 |
+| scal-p-50k-s0 | coupled | 50k | 32k / 20k | 0.96 | 0.915 / 0.586 | 0.109 | 0.975 | 0.922 / 0.580 |
+| scal-p-150k-s0 | coupled | 150k | 36k / 24k | 0.95 | 0.918 / 0.619 | 0.102 | 0.982 | 0.923 / 0.615 |
+| gnn-g2-v3-dir, 2 seeds (control) | per-quirk | 16k | 64k (cosine to 0) / last | 0 | 0.748 +- 0.004 / 0.103 | 0.117 | 0.991 | 0.748 / 0.097 |
+| scal-q-50k-s0 | per-quirk | 50k | 40k / 40k, UNFINISHED | 0.94 | not tested | - | - | 0.715 / 0.068 (Python strict, in training) |
+| scal-q-150k-s0 | per-quirk | 150k | 20k / 20k, UNFINISHED | 0.99 | not tested | - | - | 0.630 / 0.026 (Python strict, in training) |
+
+- Every rule arm stopped at 32k-40k steps, with the cosine LR still at 0.94-0.99 of its peak (it decays over the 256k
+  cap). At that LR the strict val efficiency moves by 2-4 points between validation points (pair 16k: 0.878, 0.933,
+  0.913, 0.924, 0.923), so patience 3 fires on noise before any decay. All pair rule arms sit 2-6 points (loose) and
+  6-10 points (tight) below the annealed 16k controls, and are flat in training size (0.925 / 0.915 / 0.918). This
+  measures high-LR noise, not data scaling; it says nothing about whether more data helps. The MaskFormer arms under the
+  same rule show the same problem (stopped at 30-34k steps, before their decay).
+- The per-quirk arms were stopped at the pause, still improving (50k: 0.691 at 32k, 0.715 at 40k), not tested.
+  Checkpoints kept (runs/q_*/gnn/step*.pt, state.pt).
+- Were the 16k controls trained to plateau by this rule? Not verifiable: they kept no per-epoch checkpoints and no strict
+  val. Their edge-level val metrics were flat over the last 3-4 epochs, but at an LR annealed to 0 by the 64k cosine.
+- Redo recipe: a fixed schedule with full decay per arm, no early stop on a high-LR plateau. Cosine (or warmup-stable-
+  decay) over N steps per arm, with N either fixed (64k, compute-matched, = the controls) or scaled with the data
+  (e.g. 64k / 128k / 256k for 16k / 50k / 150k, or a fixed number of epochs capped at 256k); test the final or best-val
+  checkpoint of the decayed run; 2 seeds per size (seed spread of the controls 0.3-0.5 points). If early stopping is
+  wanted, apply it only after the decay starts (e.g. WSD: decay over the last 20% once val stops improving).
+  Estimated cost: per-quirk 0.40 s/step (64k = 7.1 GPU-h), pair 0.18 s/step (64k = 3.2 GPU-h).
+- GPU: 17.3 GPU-h (m5386; scaling/gpu_hours.txt): graphs for events 20000-153999 (~3 GPU-h inside window 1), pair arms
+  ~5.5, per-quirk arms ~8.5 (unfinished).

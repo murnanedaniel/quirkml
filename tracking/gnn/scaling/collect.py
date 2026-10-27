@@ -17,7 +17,7 @@ ARMS = [
     ("coupled", 16000, 0, 64000, "ctrl_e2_pair_dir_s0"), ("coupled", 16000, 1, 64000, "ctrl_e2_pair_dir_s1"),
     ("coupled", 16000, 2, 64000, "ctrl_e2_pair_dir_s2"),
 ]
-for tag in sorted(os.listdir(E)) if os.path.isdir(E) else []:
+for tag in sorted(set(os.listdir(E)) | {t for t in os.listdir(os.path.join(S, "runs")) if t[:2] in ("q_", "p_")}):
     if tag.startswith("ctrl_"):
         continue
     kind, n, seed = tag.split("_")[:3]  # e.g. q_50k_s0 / p_150k_s1 (runs/<tag>, early stop on strict val)
@@ -105,7 +105,7 @@ def plot(rows):
                  np.std([r[key] for r in by[x]], ddof=1) if len(by[x]) > 1 else 0) for x in xs]
         return xs, m, e
 
-    fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.4))
+    fig, axes = plt.subplots(1, 2, figsize=(10.5, 5.6))
     for ax, task in zip(axes, ("per-quirk", "coupled")):
         rule = [r for r in rows if r["task"] == task and not r["tag"].startswith("ctrl_")]
         ctrl = [r for r in rows if r["task"] == task and r["tag"].startswith("ctrl_")]
@@ -132,8 +132,23 @@ def plot(rows):
         ax.grid(alpha=0.25)
         for sp in ("top", "right"):
             ax.spines[sp].set_visible(False)
-    axes[0].legend(frameon=False, fontsize=7.5, loc="center right")
-    fig.tight_layout()
+    # per-quirk rule arms were stopped unfinished (pause, 2026-10-27): best strict val so far (Python = ACTS rule), no test
+    for r in rows:
+        if r["task"] == "per-quirk" and not r["tag"].startswith("ctrl_") and "best_val_python" in r and "test_loose" not in r:
+            axes[0].plot([r["train_events"]], [r["best_val_python"]], color=col["loose"], marker="^", ms=8, mfc="white",
+                         ls="none", label="loose, best val so far, UNFINISHED (no test)")
+            axes[0].annotate(f"{r['best_step'] // 1000}k steps", (r["train_events"], r["best_val_python"]),
+                             textcoords="offset points", xytext=(6, -12), fontsize=7, color="#52514e")
+    for ax in axes:
+        ax.text(0.02, 0.02, "rule arms (lines): early stop at 0.94-0.99 of peak LR\n(cosine over the 256k cap): high-LR noise, not data scaling",
+                transform=ax.transAxes, fontsize=7, color="#52514e")
+    h, l = [], []
+    for ax in axes:
+        for hh, ll in zip(*ax.get_legend_handles_labels()):
+            if ll not in l:
+                h.append(hh); l.append(ll)
+    fig.legend(h, l, frameon=False, fontsize=7.5, loc="lower center", ncol=3)
+    fig.subplots_adjust(bottom=0.22, left=0.07, right=0.98)
     fig.savefig(os.path.join(S, "scaling_results.png"), dpi=150)
     print("plot", os.path.join(S, "scaling_results.png"))
 
