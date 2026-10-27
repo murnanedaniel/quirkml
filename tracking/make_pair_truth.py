@@ -79,7 +79,7 @@ def main() -> None:
         for k in total:
             total[k] += stats[k]
         print(f"events [{a}, {b}): {stats}", flush=True)
-    (args.out / "pair_truth_manifest.json").write_text(json.dumps(
+    (args.out / f"pair_truth_manifest_events{first}-{stop - 1}.json").write_text(json.dumps(
         {"source": str(args.dataset.resolve()), "events": [first, stop], **total,
          "rule": "first quirk row kept; other quirks' hits relabelled to it; other quirk rows removed"}, indent=1))
     print(total)

@@ -10,11 +10,12 @@ OUT=/pscratch/sd/d/danieltm/quirk_tracking/maskformer
 MAINT=$(date -d "${MAINT_AT:-2099-01-01T00:00}" +%s)  # next maintenance start (MAINT_AT env)
 log() { echo "[pair] $(date -Is) $*"; }
 NOENV() { env $(env | grep -o '^SLURM_[A-Z_]*' | sed 's/^/-u /') "$@"; }
-done_lane() { [ -f $OUT/runs/$1/TRAIN_DONE ] && [ -f $OUT/runs/$1/EVAL_DONE ]; }
-run_spec() {  # TAG|LR|EXTRA [STEPS VCI]
+done_lane() { { [ -f $OUT/runs/$1/TRAIN_DONE ] && [ -f $OUT/runs/$1/EVAL_DONE ]; } || [ -f $OUT/runs/$1/TRAIN_FAILED ]; }
+run_spec() {  # TAG|LR|EXTRA[|STEPS|VCI] [STEPS VCI]   (steps/val interval in the spec win over the arguments)
   local spec=$1 steps=${2:-30000} vci=${3:-1000}
-  local tag=${spec%%|*}; local rest=${spec#*|}; local lr=${rest%%|*}; local extra=${rest#*|}
-  [ "$extra" = "$rest" ] && extra=""
+  local tag lr extra s5 v5
+  IFS='|' read -r tag lr extra s5 v5 <<< "$spec"
+  [ -n "$s5" ] && steps=$s5; [ -n "$v5" ] && vci=$v5
   done_lane $tag && return 0
   MAX_STEPS=$steps VAL_INTERVAL=$vci bash $MF/scripts/lane.sh $tag $lr $extra >> $OUT/logs/lanes_$tag.log 2>&1
 }

@@ -1,0 +1,34 @@
+{
+ "evd_regimes": {
+  "values": {
+   "m175_L100_mu0": {
+    "event_id": 49,
+    "quirk_plus_hits": 13,
+    "quirk_minus_hits": 13,
+    "all_hits": 5576,
+    "shared_quirk_hits": 0,
+    "p75_min_quirk_hits": 13.0
+   },
+   "m175_L10000_mu0": {
+    "event_id": 32,
+    "quirk_plus_hits": 12,
+    "quirk_minus_hits": 12,
+    "all_hits": 1589,
+    "shared_quirk_hits": 5,
+    "p75_min_quirk_hits": 12.0
+   },
+   "m200_L774_mu0_test": {
+    "event_id": 17003,
+    "quirk_A_hits": 14,
+    "quirk_B_hits": 12,
+    "mass_GeV": 200
+   },
+   "mass_GeV": 175
+  },
+  "sources": {
+   "m175_L100_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L100_mu0/cost/runs/0",
+   "m175_L10000_mu0": "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m175_L10000_mu0/cost/runs/0",
+   "m200_L774_mu0_test": "/pscratch/sd/d/danieltm/quirk_tracking/gnn/cache/m200_L774_mu0/events17000-17999.pkl"
+  }
+ }
+}

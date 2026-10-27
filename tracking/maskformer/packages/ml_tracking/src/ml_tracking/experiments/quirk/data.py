@@ -59,6 +59,7 @@ class QuirkTrackingDataset(Dataset):
         dataset_root: str,
         event_range: tuple[int, int],
         num_events: int = -1,
+        extra_event_range: tuple[int, int] | None = None,
         event_max_num_particles: int = 128,
         particle_min_pt: float = 0.5,
         particle_max_abs_eta: float = 4.0,
@@ -104,6 +105,11 @@ class QuirkTrackingDataset(Dataset):
         self.dir_loc = self._index(sorted(self.direction_dir.glob("*.parquet"))) if self.direction_dir else None
         start, end = self.event_range
         ids = sorted(e for e in self.particle_loc if start <= e <= end)
+        if extra_event_range is not None:  # data-scaling study: a second, disjoint event range (train only)
+            xs, xe = _normalize_range("extra_event_range", extra_event_range)
+            if max(xs, start) <= min(xe, end):
+                raise ValueError("extra_event_range overlaps event_range")
+            ids = sorted(ids + [e for e in self.particle_loc if xs <= e <= xe])
         missing = [e for e in ids if e not in self.hit_loc]
         if missing:
             raise ValueError(f"{len(missing)} events have particles but no tracker hits, e.g. {missing[:5]}")
@@ -305,6 +311,26 @@ class QuirkTrackingDataset(Dataset):
         return inputs, targets
 
 
+class FileBlockSampler(torch.utils.data.Sampler):
+    """Shuffle the order of the hit files, and the events inside each file, but keep the events of one file together,
+    so that the per-worker row-group cache is not thrashed when the training set spans many 1000-event files."""
+
+    def __init__(self, dataset: QuirkTrackingDataset):
+        self.groups: dict[str, list[int]] = {}
+        for i, e in enumerate(dataset.event_ids):
+            self.groups.setdefault(dataset.hit_loc[e][0], []).append(i)
+        self.n = len(dataset)
+
+    def __len__(self) -> int:
+        return self.n
+
+    def __iter__(self):
+        keys = list(self.groups)
+        for k in torch.randperm(len(keys)).tolist():
+            g = self.groups[keys[k]]
+            yield from (g[j] for j in torch.randperm(len(g)).tolist())
+
+
 class QuirkDataModule(LightningDataModule):
     def __init__(
         self,
@@ -331,6 +357,8 @@ class QuirkDataModule(LightningDataModule):
         row_group_cache_size: int = 64,
         quirk_pair_target: bool = False,
         direction_dir: str | None = None,
+        train_extra_events: list[int] | None = None,
+        block_shuffle: bool = False,
     ):
         super().__init__()
         if batch_size < 1:
@@ -338,6 +366,7 @@ class QuirkDataModule(LightningDataModule):
         self.dataset_root = dataset_root
         self.ranges = {
             "train": _normalize_range("train_events", train_events),
+            # (checked against val/test below like the other ranges)
             "val": _normalize_range("val_events", val_events),
             "test": _normalize_range("test_events", test_events),
         }
@@ -349,6 +378,13 @@ class QuirkDataModule(LightningDataModule):
                     if max(ra[0], rb[0]) <= min(ra[1], rb[1]):
                         raise ValueError(f"event ranges for {a} {ra} and {b} {rb} overlap")
         self.nums = {"train": num_train, "val": num_val, "test": num_test}
+        self.block_shuffle = bool(block_shuffle)
+        self.train_extra_events = _normalize_range("train_extra_events", train_extra_events)
+        if self.train_extra_events is not None:
+            for name in ("val", "test"):
+                r = self.ranges[name]
+                if max(r[0], self.train_extra_events[0]) <= min(r[1], self.train_extra_events[1]):
+                    raise ValueError(f"train_extra_events {self.train_extra_events} overlaps {name} {r}")
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
@@ -368,7 +404,9 @@ class QuirkDataModule(LightningDataModule):
         }
 
     def _make(self, split: str) -> QuirkTrackingDataset:
-        return QuirkTrackingDataset(self.dataset_root, self.ranges[split], num_events=self.nums[split], **self.kwargs)
+        extra = self.train_extra_events if split == "train" else None
+        return QuirkTrackingDataset(self.dataset_root, self.ranges[split], num_events=self.nums[split],
+                                    extra_event_range=extra, **self.kwargs)
 
     def setup(self, stage: str):
         if stage == "fit":
@@ -380,12 +418,16 @@ class QuirkDataModule(LightningDataModule):
             self.test_dset = self._make("test")
 
     def _loader(self, dataset, shuffle: bool):
+        sampler = None
+        if shuffle and self.block_shuffle:
+            sampler, shuffle = FileBlockSampler(dataset), False
         return DataLoader(
             dataset,
             batch_size=self.batch_size,
             collate_fn=QuirkTrackingDataset.collate_fn,
             num_workers=self.num_workers,
             shuffle=shuffle,
+            sampler=sampler,
             pin_memory=self.pin_memory,
             persistent_workers=self.num_workers > 0,
             **({"prefetch_factor": 4} if self.num_workers > 0 else {}),

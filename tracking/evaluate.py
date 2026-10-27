@@ -8,7 +8,9 @@ Writes O/summary.json (the numbers below), O/acts_summary.json (every ACTS effic
 tracking_core.summary layout), O/histograms.pkl (all ACTS histograms) and O/per_event.parquet.
 
 Metrics, at the proto-track level (the predicted hit sets as they are, no fit), for the working points very_loose
-(TrackTruthMatcher matchingRatio 0.5, double matching) and tight (0.9, double matching):
+(TrackTruthMatcher matchingRatio 0.5, double matching, i.e. purity and completeness >= 50%), tight (0.9, double
+matching), and their strict versions very_loose_strict / tight_strict (> 50% / > 90%, the ATLAS convention; the
+standard from 2026-10-26):
   quirk_track_efficiency   matched quirks / quirks in the quirk selection (charged, primary, mass > 10 GeV, i.e.
                            |pdg| 10000100, at least 3 measurements; no pT / eta / prompt cut). Primary figure of merit.
   quirk_event_efficiency   events in which both quirks are matched / events with both quirks in the quirk selection.
@@ -46,7 +48,12 @@ sys.path.insert(0, str(HERE))
 from r1_data import QUIRK_PDG, read_events, stage_events  # noqa: E402
 
 CONFIG = HERE / "config"
-WORKING_POINTS = {"very_loose": (0.5, True), "tight": (0.9, True)}
+# very_loose / tight: TrackTruthMatcher's ">=" (purity and completeness >= 50% / 90%). The *_strict points are the
+# ATLAS convention, strictly above 50% / 90%: TrackTruthMatcher tests ratio >= matchingRatio, so matchingRatio
+# 0.5 + 1e-9 means > 50% for any track or particle with fewer than 5e8 hits. Strict is the standard from 2026-10-26;
+# the >= points are kept for comparison with older results.
+WORKING_POINTS = {"very_loose": (0.5, True), "tight": (0.9, True),
+                  "very_loose_strict": (0.5 + 1e-9, True), "tight_strict": (0.9 + 1e-9, True)}
 SELECTIONS = ("quirk", "technical", "technical_sm", "all")
 DEFAULT_STAGING = Path(os.environ.get("PSCRATCH", "/tmp")) / "quirk_tracking" / "staging"
 

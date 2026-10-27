@@ -17,6 +17,7 @@ STEPS=${MAX_STEPS:-30000}; VCI=${VAL_INTERVAL:-1000}
 R=$OUT/runs/$TAG; mkdir -p $R; cd $OUT
 log() { echo "[lane $TAG] $(date -Is) $*"; }
 
+[ -f $R/TRAIN_FAILED ] && { log "TRAIN_FAILED present, not retrying"; exit 1; }
 if [ ! -f $R/TRAIN_DONE ]; then
   CKPT=$(ls -t $R/*/*/version_0/ckpts/*.ckpt 2>/dev/null | head -1)
   RESUME=()
@@ -34,10 +35,17 @@ PYEOF
   log "fit start lr=$LR resume=${CKPT:-none}"
   bash $MF/scripts/run.sh fit --config $CFG/quirk.yaml --config $CFG/lrscan.yaml --name $TAG \
     --model.lrs_config.max $LR --trainer.max_steps $STEPS --trainer.val_check_interval $VCI --trainer.default_root_dir $R "${RESUME[@]}" "$@" >> $OUT/logs/$TAG.log 2>&1
-  log "fit exit rc=$?"
-  if tr '\r' '\n' < $OUT/logs/$TAG.log | grep -q "max_steps=$STEPS. reached"; then touch $R/TRAIN_DONE; fi
+  rc=$?; log "fit exit rc=$rc"
+  if tr "\r" "\n" < $OUT/logs/$TAG.log | grep -q -e "max_steps=$STEPS. reached" -e "did not improve in the last"; then touch $R/TRAIN_DONE; rm -f $R/.fit_fails
+  elif [ $rc -ne 0 ]; then
+    n=$(( $(cat $R/.fit_fails 2>/dev/null || echo 0) + 1 )); echo $n > $R/.fit_fails
+    [ $n -ge 2 ] && { touch $R/TRAIN_FAILED; log "fit failed $n times in a row: TRAIN_FAILED, lane stops"; exit 1; }
+  fi
 fi
 
+if [ -f $R/TRAIN_DONE ] && [ ! -f $R/EVAL_DONE ] && [ "${SKIP_EVAL:-0}" = 1 ]; then
+  touch $R/EVAL_DONE; log "SKIP_EVAL=1: evaluation done outside the lane (checkpoint chosen by val efficiency)"
+fi
 if [ -f $R/TRAIN_DONE ] && [ ! -f $R/EVAL_DONE ]; then
   BEST=$(ls $R/*/*/version_0/ckpts/*.ckpt | awk -F'val_loss=' '{print $2" "$0}' | sort -g | head -1 | cut -d' ' -f2-)
   RUNCFG=$(ls -t $R/*/*/version_0/config.yaml | tail -1)

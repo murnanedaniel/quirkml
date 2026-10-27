@@ -13,6 +13,8 @@ Methods:
            R^2) are its end points; edges between end points of different tracks with score > --th-stitch are taken in
            decreasing score order, each end point used once, no cycles. A track that turns back is split by ccwalk at
            its turning points; the pieces end at the same place and are joined again here.
+  hybrid : connected components of the edges above --cc-cut with >= --min-hits hits are tracks; the rest of the hits
+           and edges go to ccwalk_stitch.
   cc     : plain connected components of edges with score > --cc-cut (orientation-free).
 Tracks with fewer than --min-hits hits are dropped (hits -> -1).
 
@@ -109,6 +111,20 @@ def build_event(item):
         _, lab = np.unique(roots[good], return_inverse=True)
         labels[good] = lab
         return ev["event_id"], labels
+    taken = None
+    if ARGS.method == "hybrid":
+        # components of the edges above --cc-cut with >= min_hits hits become tracks; the remaining hits and edges
+        # go to ccwalk + stitch
+        k = sc > ARGS.cc_cut
+        m = coo_matrix((np.ones(k.sum()), (src[k], dst[k])), shape=(n, n))
+        _, lab = connected_components(m, directed=False)
+        _, inv, cnt = np.unique(lab, return_inverse=True, return_counts=True)
+        good = cnt[inv] >= ARGS.min_hits
+        _, labels_good = np.unique(lab[good], return_inverse=True)
+        labels[good] = labels_good
+        taken = good
+        keep_e = ~(good[src] | good[dst])
+        src, dst, sc = src[keep_e], dst[keep_e], sc[keep_e]
     if ARGS.method == "cc":
         k = sc > ARGS.cc_cut
         m = coo_matrix((np.ones(k.sum()), (src[k], dst[k])), shape=(n, n))
@@ -128,11 +144,12 @@ def build_event(item):
     cc_tracks, removed = cw.simple_path_components(succ, pred, order)
     claimed, _, _ = cw.walk(succ, pred, order, removed, ARGS.th_min, ARGS.th_add)
     tracks = cw.flatten_partition(cc_tracks + claimed)
-    if ARGS.method == "ccwalk_stitch":
+    if ARGS.method in ("ccwalk_stitch", "hybrid"):
         tracks = stitch([t for t in tracks if len(t) >= 2], src, dst, sc, R, n)
     tracks = [t for t in tracks if len(t) >= ARGS.min_hits]
+    off = 0 if taken is None else int(labels.max()) + 1
     for i, t in enumerate(tracks):
-        labels[np.asarray(t, np.int64)] = i
+        labels[np.asarray(t, np.int64)] = off + i
     return ev["event_id"], labels
 
 
@@ -142,7 +159,7 @@ def main():
     ap.add_argument("--cache", required=True)
     ap.add_argument("--scored", required=True)
     ap.add_argument("--events", type=int, nargs=2, required=True)
-    ap.add_argument("--method", choices=["ccwalk", "ccwalk_stitch", "cc", "greedy"], default="ccwalk")
+    ap.add_argument("--method", choices=["ccwalk", "ccwalk_stitch", "cc", "greedy", "hybrid"], default="ccwalk")
     ap.add_argument("--score-cut-cc", type=float, default=0.01)
     ap.add_argument("--th-min", type=float, default=0.1)
     ap.add_argument("--th-add", type=float, default=0.6)

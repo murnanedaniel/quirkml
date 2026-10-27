@@ -36,7 +36,8 @@ import polars as pl
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from r1_data import QUIRK_PDG, read_events  # noqa: E402
 
-WORKING_POINTS = {"very_loose": (0.5, True), "tight": (0.9, True)}
+WORKING_POINTS = {"very_loose": (0.5, True), "tight": (0.9, True),  # >= 50% / 90%; *_strict: > 50% / 90%
+                  "very_loose_strict": (0.5 + 1e-9, True), "tight_strict": (0.9 + 1e-9, True)}  # (as evaluate.py)
 PAIR_LABEL = -2  # label of the pair object in the coupled scoring
 MIN_HITS = 3
 _KEY = 1 << 40  # (count, last row) packed as count * _KEY + last row

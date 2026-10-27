@@ -34,20 +34,21 @@ for f in sorted(glob.glob(f"{root}/truth/particles/*.parquet")):
             quirks[e] = ids[np.abs(pdg) == 10000100]
 
 
-def matched(tid, sel):
-    """Return (any double-50% match, best track id) for the hit set sel."""
+def matched(tid, sel, strict=False):
+    """Return (any double-50% match, best track id) for the hit set sel; strict: > 50% instead of >= 50%."""
     tr, c = np.unique(tid[sel & (tid >= 0)], return_counts=True)
     best, ok = -1, False
     for t, n in zip(tr, c, strict=True):
         size = (tid == t).sum()
-        if n >= 0.5 * sel.sum() and n >= 0.5 * size:
+        passes = (n > 0.5 * sel.sum() and n > 0.5 * size) if strict else (n >= 0.5 * sel.sum() and n >= 0.5 * size)
+        if passes:
             ok, best = True, t
     if best < 0 and len(tr):
         best = tr[np.argmax(c)]
     return ok, best
 
 
-n_ev = n_coupled = n_both_in = n_q = n_q_ok = 0
+n_ev = n_coupled = n_both_in = n_q = n_q_ok = n_coupled_strict = 0
 for e, g in pred.groupby("event_id"):
     pid = hits[e]
     tid = np.full(len(pid), -1)
@@ -62,10 +63,11 @@ for e, g in pred.groupby("event_id"):
     u = np.isin(pid, qs)
     ok, best = matched(tid, u)
     n_coupled += ok
+    n_coupled_strict += matched(tid, u, strict=True)[0]
     if ok:
         in_t = tid == best
         n_both_in += all(((pid == q) & in_t).sum() >= 3 for q in qs)
-res = {"events": n_ev, "coupled_eff": n_coupled / max(n_ev, 1), "coupled_with_both_quirks": n_both_in / max(n_ev, 1),
+res = {"events": n_ev, "coupled_eff": n_coupled / max(n_ev, 1), "coupled_eff_strict": n_coupled_strict / max(n_ev, 1), "coupled_with_both_quirks": n_both_in / max(n_ev, 1),
        "quirks": n_q, "per_quirk_double_majority": n_q_ok / max(n_q, 1)}
 print(json.dumps(res))
 if out_json:

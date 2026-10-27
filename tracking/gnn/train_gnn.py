@@ -53,6 +53,11 @@ def batch(evs, graphs, with_truth=True):
         efs.append(torch.cat(ef, 1))
         if with_truth:
             y, w = edge_truth(ev, g["src"], g["dst"])
+            if RECIPE.get("pair_all_true"):  # pair target: every edge joining two hits of the quirk pair is true
+                hq = ev["hit_quirk"]
+                pp = hq[g["src"]] & hq[g["dst"]] & (ev["pid"][g["src"]] == ev["pid"][g["dst"]])
+                y = y | pp
+                w = np.where(pp, 1.0, w).astype(np.float32)
             if RECIPE["name"] == "lrt":  # ROADMAP T1 / LRT recipe S: quirk true 10, other true 0.02, wrong 0.1
                 w = lrt_weights(ev, g["src"], g["dst"], y, 10.0, 0.02, 0.1, RECIPE["w_qq"])
             elif QW != 1.0:
@@ -274,6 +279,7 @@ def main():
     ap.add_argument("--recipe", choices=["all", "lrt"], default="all")
     ap.add_argument("--direction", action="store_true", help="Stage E cluster direction node + edge features")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--pair-all-true", action="store_true", help="with a pair cache: all same-pair edges are true")
     ap.add_argument("--w-qq", type=float, default=0.1, help="lrt: weight of wrong edges joining the two quirks")
     ap.add_argument("--track-val", action="store_true", help="per-epoch track-level val; selects best_trk.pt")
     ap.add_argument("--n-track-val", type=int, default=200)
@@ -289,6 +295,7 @@ def main():
     CLUSTER = a.cluster
     RECIPE.update(name=a.recipe, w_qq=a.w_qq, fake_target=a.fake_target)
     DIRECTION["on"] = a.direction
+    RECIPE["pair_all_true"] = a.pair_all_true
     {"train": train, "infer": infer, "select": select}[a.mode](a)
 
 

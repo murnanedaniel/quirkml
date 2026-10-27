@@ -122,3 +122,23 @@ Total about 400 node-hours, leaving margin for retries and a later second pass. 
   (EnableEM). Seen so far only in multi-threaded runs. Production retries failed runs once; physics unchanged
   mid-production. Question for Daniel: drop pair production for quirks (negligible for slow heavy quirks?) in a
   later version, or find the cause.
+
+## Next phase (agreed with Daniel 2026-10-26): separate quirks, fewer fakes, quirk parameters
+
+Strict matching (> 50%, > 90%, ATLAS convention) is the standard from 2026-10-26 (EXPERIMENTS.md "Strict matching").
+Defaults until Daniel says otherwise: fake-rate work at mu = 0 first; parameter inference aims at per-event
+posteriors on (m, Lambda), combined over events for a dataset-level measurement.
+
+- A. Find each quirk separately: find the pair (pair GNN), then split it.
+  A0 crossing ambiguity (CPU; bound on tight efficiency for a position-only splitter);
+  A1 learned splitter on oracle pairs, then on pair GNN tracks; A2 edge head on the pair GNN + 2-colouring.
+  Reference: per-quirk GNN v3 0.748 (tight 0.103) strict; ceiling 0.966 / 0.828.
+- B. Fake rate: B1 decomposition of fakes by category; B2 track quality score (GBDT) giving efficiency-vs-fake
+  curves and matched-fake comparisons; B3 quirk tagger (ordinary tracks tagged as quirk per event).
+- C. Quirk parameters: C1 information study with truth assignment (quirk_sim propagator, fit/); C2 learned
+  inference on the grid (runs 4-43); C3 on reconstructed pair / split tracks.
+Budget: about 30 GPU-hours for A, CPU for B1-B3 and C1, 30-50 GPU-hours for C2.
+- D. Data scaling (agreed 2026-10-27): every model so far trained on 16k events; the m200_L774_mu0 package has 1M.
+  Arms without direction features (they exist only below event 20000), 16k no-direction controls.
+  Per-quirk GNN v3 and pair GNN at 16k / 50k / 150k events (~60 GPU-h); MaskFormer pair target at 16k / 50k / 150k
+  (~40 GPU-h); splitter at 16k / 50k / 200k / ~1M oracle pairs (part of A). Efficiency vs training events, strict.

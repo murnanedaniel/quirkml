@@ -167,7 +167,7 @@ def apply(a):
     model = build_model(cfg["hidden"], cfg["layers"])
     model.load_state_dict(torch.load(os.path.join(a.out, "best.pt")))
     model.eval()
-    gdir = os.path.join(a.out, f"graphs_cut{a.cut:g}")
+    gdir = a.graph_dir or os.path.join(a.out, f"graphs_cut{a.cut:g}")
     for rng in a.ranges:
         first, last = map(int, rng.split("-"))
         evs = load_events(a.cache, first, last)
@@ -217,6 +217,7 @@ def main():
     ap.add_argument("--cuts", type=float, nargs="+", default=[0.05, 0.2, 0.5])
     ap.add_argument("--scan", type=float, nargs="+", default=[0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5])
     ap.add_argument("--cut", type=float, default=0.05)
+    ap.add_argument("--graph-dir", default=None, help="apply: output directory (default <out>/graphs_cut<cut>)")
     ap.add_argument("--ranges", nargs="+", default=[])
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)

@@ -1,0 +1,37 @@
+# Common data-scaling budget rule (MaskFormer and GNN studies, 2026-10-27): train until the strict validation
+# coupled efficiency (val/coupled_strict, model.py) has not improved for 3 validation points (every 2000 steps),
+# capped at 4x the 16k control's steps (4 x 30k = 120k). WSD is scheduled over the cap.
+# jsonargparse replaces lists: the callback list of quirk.yaml is repeated with EarlyStopping added.
+trainer:
+  max_steps: 120000
+  # no stop before 20k steps: the coupled efficiency is 0 for the first several validation points of every run
+  min_steps: 20000
+  val_check_interval: 2000
+  callbacks:
+    - class_path: ml_tracking.experiments.quirk.prediction_writer.QuirkPredictionWriter
+      init_args:
+        out_dir: predictions
+        object_threshold: 0.1
+        mask_threshold: 0.5
+    - class_path: ml_tracking.experiments.quirk.monitor.TrainingMonitor
+      init_args:
+        log_every_n_steps: 10
+    - class_path: ml_tracking.callbacks.SaveConfig
+    - class_path: ml_tracking.callbacks.Checkpoint
+      init_args:
+        monitor: val/loss
+    - class_path: lightning.pytorch.callbacks.EarlyStopping
+      init_args:
+        monitor: val/coupled_strict
+        mode: max
+        patience: 3
+        min_delta: 0.0
+        verbose: true
+        check_on_train_epoch_end: false
+    - class_path: lightning.pytorch.callbacks.ModelSummary
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: step
+    - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 50

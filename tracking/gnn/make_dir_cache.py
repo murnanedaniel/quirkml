@@ -27,7 +27,9 @@ def one(path):
     with open(path, "rb") as fh:
         evs = pickle.load(fh)
     a, b = os.path.basename(path)[6:-4].split("-")
-    t = pq.read_table(os.path.join(A.direction, f"quirks.m200_L774_mu0.v1.direction.events{a}-{b}.parquet")).sort_by("event_id")
+    f = glob.glob(os.path.join(A.direction, f"*.direction.events{a}-{b}.parquet"))
+    assert len(f) == 1, f
+    t = pq.read_table(f[0]).sort_by("event_id")
     eids = t["event_id"].to_numpy()
     n = np.asarray(pc.list_value_length(t["axis_a_x"]))
     off = np.concatenate([[0], np.cumsum(n)])

@@ -25,7 +25,36 @@ class QuirkModel(ModelWrapper):
                 except ValueError:
                     pass
 
+    def log_coupled_strict(self, preds, targets, stage, object_threshold=0.1, mask_threshold=0.5):
+        """Coupled quirk efficiency, strict (> 50% / > 50%), with the prediction writer's hit assignment.
+
+        Per event with quirk targets: U = union of the quirk targets' hits (the pair target, or both quirks). Hits go
+        to the valid query (object prob >= object_threshold) with the highest mask probability, if >= mask_threshold.
+        Matched if some assigned track T has |T & U| > |U| / 2 and |T & U| > |T| / 2. Matching-independent, so it can
+        drive early stopping and checkpoint choice (val/coupled_strict)."""
+        obj = preds["flow_valid"]["flow_valid_prob"].float()
+        mprob = preds["flow_sihit_assignment"]["flow_sihit_valid_prob"].float()
+        hit_valid = targets["sihit_valid"]
+        quirk = targets["particle_is_quirk"] & targets["particle_valid"]
+        union = (targets["particle_sihit_valid"] & quirk.unsqueeze(-1)).any(1) & hit_valid  # [B, H]
+        has = union.sum(-1) >= 3
+        if not has.any():
+            return
+        valid_q = obj >= object_threshold  # [B, Q]
+        score = mprob.masked_fill(~valid_q.unsqueeze(-1), -1.0)
+        best_p, best_q = score.max(1)  # [B, H]
+        assigned = (best_p >= mask_threshold) & hit_valid
+        nq = mprob.shape[1]
+        onehot = torch.nn.functional.one_hot(best_q, nq).bool() & assigned.unsqueeze(-1)  # [B, H, Q]
+        size = onehot.sum(1)  # [B, Q]
+        inter = (onehot & union.unsqueeze(-1)).sum(1)  # [B, Q]
+        u = union.sum(-1, keepdim=True)
+        ok = ((2 * inter > u) & (2 * inter > size)).any(-1) & has
+        self.log(f"{stage}/coupled_strict", ok[has].float().mean(), batch_size=int(has.sum()), on_step=False, on_epoch=True)
+
     def log_custom_metrics(self, preds, targets, stage):
+        if stage == "val":
+            self.log_coupled_strict(preds["final"], targets, stage)
         preds = preds["final"]
         if "flow_sihit_assignment" not in preds:
             return
