@@ -891,3 +891,20 @@ Findings.
   cut 0.7) against 0.94 for every other model, consistent with its higher track fake rate and lower technical
   efficiency (row gnn-p3-pairv3-s0).
 - Seeds: spread <= 0.006 on every edge number.
+
+### Edge ROC AUC (test), 2026-10-28
+
+tracking/gnn/edge_auc.py on the edge_eval score histograms (1000 bins; results/edge_eval/auc_<split>.json). AUC over
+the candidate edges in each model's graph. Positives = the training-target edges; negatives = edges joining two
+different particles (pair GNNs: the quirk pair is one particle); same-particle non-target edges (zero loss weight) left
+out. Quirk A against quirk B (per-quirk GNNs only): same-quirk target edges against edges joining the two quirks.
+
+| Model | All edges | Edges with a quirk hit | Quirk A against quirk B |
+|---|---|---|---|
+| per-quirk, graph v2 | 0.9992 | 0.989 | 0.940 (val 0.954) |
+| per-quirk, graph v3 (2 seeds) | 0.9994 | 0.995 | 0.959 (val 0.967) |
+| pair, own graph (3 seeds) | 0.9993 | 0.998 | n/a |
+| pair, graph v3 | 0.9977 | 0.997 | n/a |
+
+With "true = any two hits of one particle" (the purity definition) the all-edge AUC drops to 0.77-0.82, because the GNNs
+score non-neighbouring same-particle edges (not trained on) low; that version is not used.
