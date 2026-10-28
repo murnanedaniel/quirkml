@@ -3948,5 +3948,28 @@
     }
    }
   }
- }
+ },
+ "def_quirks": [
+  {
+   "title": "each quirk on its own track",
+   "A": true,
+   "B": true,
+   "event": true,
+   "pair": false
+  },
+  {
+   "title": "quirk B split in two tracks",
+   "A": true,
+   "B": false,
+   "event": false,
+   "pair": false
+  },
+  {
+   "title": "one track holds both quirks",
+   "A": false,
+   "B": false,
+   "event": false,
+   "pair": true
+  }
+ ]
 }
