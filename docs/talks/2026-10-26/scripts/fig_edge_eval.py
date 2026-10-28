@@ -27,10 +27,10 @@ CV = np.load(os.path.join(RES, "curves.npz"))
 CUTS = R["cuts"]
 
 GROUPS = {  # label, seeds, colour, linestyle, operating cuts
-    "pq_v2": ("per-quirk GNN, graph v2", ["v2"], "#eda100", "-", [0.1, 0.6]),
-    "pq_v3": ("per-quirk GNN, graph v3", ["v3_s0", "v3_s1"], "#1baf7a", "-", [0.1, 0.6]),
+    "pq_v2": ("per-quirk GNN, graph v2", ["v2"], "#eda100", "-", [0.5]),
+    "pq_v3": ("per-quirk GNN, graph v3", ["v3_s0", "v3_s1"], "#1baf7a", "-", [0.5]),
     "pair_own": ("pair GNN, its own graph", ["e2_s0", "e2_s1", "e2_s2"], "#6250d6", "--", [0.5]),
-    "pair_v3": ("pair GNN, graph v3", ["p3"], "#e87ba4", "--", [0.7]),
+    "pair_v3": ("pair GNN, graph v3", ["p3"], "#e87ba4", "--", [0.5]),
 }
 MK = {0.1: "o", 0.5: "s", 0.6: "s", 0.7: "D"}
 
@@ -79,12 +79,12 @@ def panel(ax, groups, xk, yk, title, xlabel, ylabel, xlim, ylim):
 def fig_main():
     setup(15)
     fig, axs = plt.subplots(1, 3, figsize=(13.87, 3.75), layout="constrained")
-    panel(axs[0], ["pq_v2", "pq_v3"], "eff_samequirk", "purity_quirk_same", "Quirk edges, per-quirk target",
-          "same-quirk edge efficiency", "purity, quirk-touching edges", (0.3, 1.0), (0.4, 1.0))
-    panel(axs[1], ["pair_own", "pair_v3"], "eff_pairchain", "purity_quirk_same", "Quirk edges, pair target",
-          "pair edge efficiency", "purity, quirk-touching edges", (0.3, 1.0), (0.4, 1.0))
+    panel(axs[0], ["pq_v2", "pq_v3"], "eff_samequirk", "purity_quirk_same", "GNN trained per quirk",
+          "quirk edge efficiency", "purity, edges with a quirk hit", (0.3, 1.0), (0.4, 1.0))
+    panel(axs[1], ["pair_own", "pair_v3"], "eff_pairchain", "purity_quirk_same", "GNN trained on the pair",
+          "quirk pair edge efficiency", "purity, edges with a quirk hit", (0.3, 1.0), (0.4, 1.0))
     panel(axs[2], list(GROUPS), "eff_ordinary", "purity_all_same", "Ordinary particles",
-          "ordinary edge efficiency", "purity, all edges", (0.75, 1.0), (0.75, 1.0))
+          "ordinary-particle edge efficiency", "purity, all edges", (0.75, 1.0), (0.75, 1.0))
     # model legend in the empty lower-left of the pair panel, marker legend in the per-quirk panel
     h, l = [], []
     for ax in axs:
@@ -93,8 +93,8 @@ def fig_main():
                 h.append(a_)
                 l.append(b_)
     axs[1].legend(h, l, loc="lower left", fontsize=12.5, handlelength=1.8)
-    mh = [axs[0].plot([], [], MK[c], color=C["ink2"], ms=9)[0] for c in (0.1, 0.6, 0.7)]
-    axs[0].legend(mh, ["cut 0.1 (walk follows)", "cut 0.6 (walk branches)\nor 0.5 (components)", "cut 0.7 (components)"],
+    mh = [axs[0].plot([], [], MK[c], color=C["ink2"], ms=9)[0] for c in (0.5,)]
+    axs[0].legend(mh, ["score cut 0.5"],
                   loc="lower left", fontsize=12.5)
     save(fig, "edge_eff_purity")
 
