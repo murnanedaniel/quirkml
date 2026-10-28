@@ -810,3 +810,84 @@ Outputs /pscratch/sd/d/danieltm/quirk_tracking/scaling/ (scaling_results.{csv,md
   Estimated cost: per-quirk 0.40 s/step (64k = 7.1 GPU-h), pair 0.18 s/step (64k = 3.2 GPU-h).
 - GPU: 17.3 GPU-h (m5386; scaling/gpu_hours.txt): graphs for events 20000-153999 (~3 GPU-h inside window 1), pair arms
   ~5.5, per-quirk arms ~8.5 (unfinished).
+
+## Edge-level efficiency and purity (test), 2026-10-28
+
+Question (Daniel): per-edge efficiency / purity of the quirk GNNs. Until now only the per-epoch val numbers at cut 0.5
+in the training logs existed. CPU only, from the saved scored graphs (no new inference): tracking/gnn/edge_eval.py
+(+ edge_eval.sbatch, debug CPU, ~5 min), figure and table docs/talks/2026-10-26/scripts/fig_edge_eval.py. Outputs:
+quirk_tracking_data/results/edge_eval/ (edge_eval.json, curves.npz, edge_table.json, raw/); figures
+docs/talks/2026-10-26/figs/edge_eff_purity.png, edge_cross_kept.png; table in figs/numbers.json["edge_eval"].
+Models: per-quirk GNN v2 (graph v2, gnn-v2-node), per-quirk GNN on graph v3 (gnn-g2-v3-dir-s0/s1), pair GNN on its
+own graph (gnn-e2-pair-dir-s0/s1/s2), pair GNN on graph v3 (gnn-p3-pairv3-s0); checkpoint best.pt (lowest val loss),
+as used for every track-building row above.
+
+Definitions.
+- Truth = the training truth: one particle per hit (R1 particle_id), consecutive = neighbouring hits of one particle
+  in true sim-hit time order (make_cache.py chain; same-surface groups ordered in space). Pair chain = neighbouring
+  hits of the merged, time-ordered sequence of both quirks (make_pair_cache.py, the e2 target). p3 target: every
+  edge joining two hits of the pair (--pair-all-true). Same-particle non-consecutive edges have loss weight 0 in all
+  trainings.
+- Edge classes: ordinary true (consecutive, one ordinary particle), same-quirk true (consecutive, one quirk), cross
+  (one hit of quirk A, one of quirk B: false for per-quirk targets, true for pair targets), other false.
+- Efficiency of a class = edges of the class with score > cut / all truth edges of the class, including those missing
+  from the graph (the training-log convention, so the value at cut 0 is the graph efficiency).
+- Purity, "same particle": edges above the cut whose two hits belong to one particle (for pair models the pair is one
+  particle) / all edges above the cut (all edges) or / edges with at least one quirk hit (quirk-touching). Purity,
+  "consecutive" (the training-log val_purity / val_purity_quirk): only consecutive edges count as true; the log's
+  quirk numerator is consecutive edges with both hits quirk hits (pair chain for pair models).
+- Training-log keys (train_gnn.evaluate -> common.edge_counts, val events 16000-16199, cut 0.5): val_eff = all
+  consecutive edges found / all consecutive edges; val_eff_quirk = same for quirk consecutive edges (pair chain with
+  the pair cache); val_eff_tech = same for particles with pT > 1 GeV and >= 7 hits; val_purity = consecutive edges /
+  edges above the cut; val_purity_quirk = consecutive edges with both hits quirk hits / edges touching a quirk hit.
+- Operating cuts for track building: per-quirk models use walk + stitch (the walk follows the best edge above 0.1 and
+  branches on edges above 0.6); pair GNN own graph: components at 0.5; pair GNN graph v3: components at 0.7.
+- Quirk-rule variant (quirk_rule.rule_labels on the packaged particle_ids): a hit of both quirks belongs to both,
+  quirk-secondary hits (all particles quirk descendants; 0.09% of hits, 13% as many as quirk hits) and their edges are
+  excluded. It changes same-quirk efficiency by < 0.001 and raises quirk-touching purity by 1.4-4 points (the
+  excluded edges are mostly false); the tables use the training truth.
+
+Consistency with the training logs (cut 0.5, recomputed on val 16000-16199 from the saved scores vs cut_scan.json of
+best.pt): all five quantities agree within 0.002 for all 7 models (e.g. v3 s0 eff_quirk 0.6598 vs 0.6589,
+purity_quirk 0.7708 vs 0.7709; e2 s0 0.8401 vs 0.8399; p3 0.8471 vs 0.8477). On the full val 16000-16999 and on test
+the values move by at most 0.015 (val_eff_quirk) and 0.03 (p3 purity_quirk 0.107 on val vs 0.135 on test).
+
+Test 17000-19999 (3000 events), at the operating cuts (0.5 shown for the per-quirk models as the log reference).
+Mean +- sample std over seeds (v3: 2, pair own graph: 3). Cross kept = fraction of the graph's cross-quirk edges above
+the cut (heavy-tailed denominator: 85 per event on test, 113 on val for graph v3; per event is more stable).
+
+| Model | Cut | Ordinary eff | Same-quirk eff | Pair-chain eff | Cross: pair-chain eff | Cross kept (of graph) | Cross kept per event | Purity all (same particle) | Purity quirk-touching (same particle) | Purity quirk-touching (consecutive) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| per-quirk, graph v2 | 0.1 | 0.971 | 0.894 | 0.511 | 0.216 | 0.241 | 13.8 | 0.902 | 0.579 | 0.530 |
+| per-quirk, graph v2 | 0.5 | 0.938 | 0.626 | 0.347 | 0.064 | 0.065 | 3.7 | 0.971 | 0.787 | 0.777 |
+| per-quirk, graph v2 | 0.6 | 0.928 | 0.520 | 0.296 | 0.026 | 0.024 | 1.4 | 0.979 | 0.879 | 0.871 |
+| per-quirk, graph v3 | 0.1 | 0.978 +- 0.000 | 0.937 +- 0.000 | 0.522 | 0.219 | 0.165 +- 0.001 | 14.1 +- 0.1 | 0.899 | 0.586 +- 0.003 | 0.536 |
+| per-quirk, graph v3 | 0.5 | 0.943 +- 0.000 | 0.672 +- 0.004 | 0.360 | 0.068 | 0.045 +- 0.001 | 3.8 +- 0.1 | 0.970 | 0.795 +- 0.003 | 0.785 |
+| per-quirk, graph v3 | 0.6 | 0.933 +- 0.000 | 0.561 +- 0.004 | 0.308 | 0.028 | 0.016 +- 0.000 | 1.4 +- 0.0 | 0.978 | 0.889 +- 0.000 | 0.880 |
+| pair, own graph | 0.5 | 0.939 +- 0.001 | 0.819 +- 0.002 | 0.840 +- 0.002 | 0.790 +- 0.003 | 0.589 +- 0.006 | 34.0 +- 0.4 | 0.972 | 0.977 +- 0.000 | 0.346 +- 0.003 |
+| pair, graph v3 | 0.5 | 0.882 | 0.941 | 0.844 | 0.765 | 0.950 | 81.1 | 0.953 | 0.949 | 0.949 (all pair edges true) |
+| pair, graph v3 | 0.7 | 0.843 | 0.917 | 0.822 | 0.744 | 0.924 | 78.9 | 0.974 | 0.965 | 0.965 (all pair edges true) |
+
+Truth per test event: 25.6 same-quirk consecutive edges, 15.8 pair-chain cross edges, 3243 ordinary consecutive
+edges. Graph efficiency (cut 0): same-quirk 0.934 (v2 graph), 0.981 (v3), 0.918 (pair arm's graph); ordinary 0.984 /
+0.993 / 0.985. Any two hits of the pair kept (fraction of those in the graph): pair own graph 0.577, pair graph v3 0.950
+at 0.5; per-quirk models keep 0.29 (v2) / 0.22 (v3) of the graph's edges joining any two hits of one quirk at 0.5
+(edge_table.json frac_samequirk_any_kept_in_graph).
+
+Findings.
+- Per-quirk GNNs: same-quirk efficiency falls from 0.87 at cut 0.3 to 0.67 at 0.5 (graph v3), the score bump at
+  0.4-0.5 seen in the 17 Oct score plot. At the cut the walk follows (0.1) 0.937 of same-quirk consecutive edges are
+  kept, together with 14 cross-quirk edges per event against 24 kept same-quirk consecutive edges per event; at 0.6
+  (branching) 1.4 cross edges per event remain. Quirk-touching purity is 0.59 at 0.1 and 0.89 at 0.6. This is in line
+  with the switching seen at track level (about 3 switches per mixed track) but the edge numbers alone do not show
+  which edges the walk takes.
+- Graph v3 vs v2 (per-quirk): +4-5 points same-quirk efficiency at every cut, mostly from the graph (0.981 vs 0.934
+  at cut 0); fewer cross edges kept as a fraction of the graph (0.165 vs 0.241 at 0.1) but the same number per event
+  (14). Ordinary edges are unchanged (0.94 at 0.5).
+- Pair GNN on its own graph: 0.840 of pair-chain edges at 0.5 with quirk-touching purity 0.977 (pair as one
+  particle). Its consecutive-only purity is 0.35 because it also scores non-neighbouring same-pair edges high (those
+  are masked in its training): the log's val_purity_quirk is not a measure of wrong edges for this model.
+- Pair GNN on graph v3: keeps 0.95 of all same-pair edges at 0.5, but ordinary efficiency drops to 0.88 (0.84 at its
+  cut 0.7) against 0.94 for every other model, consistent with its higher track fake rate and lower technical
+  efficiency (row gnn-p3-pairv3-s0).
+- Seeds: spread <= 0.006 on every edge number.
