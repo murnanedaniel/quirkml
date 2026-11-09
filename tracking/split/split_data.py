@@ -20,8 +20,8 @@ import pyarrow.parquet as pq
 sys.path.insert(0, "/global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirkml/tracking/gnn")
 from common import VOLUMES, load_events  # noqa: E402
 
-CACHE = "/pscratch/sd/d/danieltm/quirk_tracking/gnn/cache/m200_L774_mu0_dir"
-R1 = "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m200_L774_mu0/v1/parquet_r1/reco/tracker_hits"
+CACHE = os.environ.get("SPLIT_CACHE", "/pscratch/sd/d/danieltm/quirk_tracking/gnn/cache/m200_L774_mu0_dir")
+R1 = os.environ.get("SPLIT_R1_HITS", "/global/cfs/cdirs/m4958/data/ColliderML/simulation/quirks/m200_L774_mu0/v1/parquet_r1/reco/tracker_hits")
 
 
 def feats(ev, idx):
@@ -66,11 +66,18 @@ def main():
     ap.add_argument("--min-hits", type=int, default=4)
     ap.add_argument("--other-frac", type=float, default=0.02)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--gate-file", default=None, help="cc: keep only tracks with quirk_tag >= --gate-cut (no truth selection)")
+    ap.add_argument("--gate-cut", type=float, default=0.0)
     a = ap.parse_args()
+    gate = None
+    if a.gate_file:
+        g = pq.read_table(a.gate_file).to_pandas()
+        g = g[g.quirk_tag >= a.gate_cut]
+        gate = set(zip(g.event_id.astype(int), g.track_id.astype(int)))
     rng = np.random.default_rng(0)
     evs = load_events(CACHE, *a.events)
     T = {}
-    for f in sorted(glob.glob(R1 + "/*.parquet")):
+    for f in ([] if os.environ.get("SPLIT_NO_TIME") else sorted(glob.glob(R1 + "/*.parquet"))):  # no-time arms: skip
         t = pq.read_table(f, columns=["event_id", "time"])
         eid = t["event_id"].to_numpy()
         sel = np.flatnonzero((eid >= a.events[0]) & (eid <= a.events[1]))
@@ -84,7 +91,7 @@ def main():
         P = {int(e): g.sort_values("hit_id").predicted_track_id.to_numpy() for e, g in p.groupby("event_id")}
     out = []
     for ev in evs:
-        e = ev["event_id"]; pid = ev["pid"]; hq = ev["hit_quirk"]; t = T[e]
+        e = ev["event_id"]; pid = ev["pid"]; hq = ev["hit_quirk"]; t = T.get(e, np.zeros(len(pid)))
         tracks = []
         if a.mode == "oracle":
             qs = [q for q in np.unique(pid[hq]) if (pid == q).sum() >= 3]
@@ -96,7 +103,10 @@ def main():
                 idx = np.flatnonzero(lab == tid)
                 if len(idx) < a.min_hits:
                     continue
-                if hq[idx].any() or rng.random() < a.other_frac:
+                if gate is not None:
+                    if (int(e), int(tid)) in gate:
+                        tracks.append(idx)
+                elif hq[idx].any() or rng.random() < a.other_frac:
                     tracks.append(idx)
         for idx in tracks:
             if a.mode == "oracle":
