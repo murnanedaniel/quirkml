@@ -5,3 +5,9 @@ sim/QuirkDDG4/build/
 *_steps.csv
 *.hepmc3
 build-*/
+.pytest_cache/
+wandb/
+*.ckpt
+*.pt
+*.parquet
+slurm-*.out
