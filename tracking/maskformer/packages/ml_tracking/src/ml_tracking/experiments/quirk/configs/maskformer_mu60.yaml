@@ -12,7 +12,7 @@ name: quirk_mf_mu60
 
 data:
   dataset_root: /global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_tracking_data/parquet_r1_mu60/m200_L774_mu60
-  hit_mask_dir: /global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_tracking_data/hit_masks_mu60/flexfilt_v2/m200_L774_mu60
+  hit_mask_dir: null  # every mu 60 run so far used null; set to a hit-mask directory to train on filtered hits
   train_events: [3000, 99999]
   val_events: [2000, 2999]
   test_events: [0, 1999]
