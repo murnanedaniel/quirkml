@@ -142,3 +142,12 @@ Budget: about 30 GPU-hours for A, CPU for B1-B3 and C1, 30-50 GPU-hours for C2.
   Arms without direction features (they exist only below event 20000), 16k no-direction controls.
   Per-quirk GNN v3 and pair GNN at 16k / 50k / 150k events (~60 GPU-h); MaskFormer pair target at 16k / 50k / 150k
   (~40 GPU-h); splitter at 16k / 50k / 200k / ~1M oracle pairs (part of A). Efficiency vs training events, strict.
+
+## Resumed 2026-11-03: pileup 60 (agreed with Daniel)
+
+Run 3 average pileup is ~48 (2022-24), with much data at 50+ and peaks above 60; mu = 60 data already exists
+(100k events at m200 for Lambda 278 / 774 / 2154 eV, 2000 test events per grid point). Order: (1) size check,
+(2) zero-shot pu0 models on mu 60 test, (3) train at mu 60 (pair GNN, per-quirk GNN, MaskFormer, splitter) with the
+review thread's recipe (REVIEW_SYNC_2026-11-03.md): constant LR + linear decay over the last 20%, no early stopping,
+data scaling via decay branches off a constant-LR trunk. GPU: one gpu_shared_interactive slot for quirk work
+(handed over by the review thread, job 60735878 ending ~05:20 PST 3 Nov) plus <= 4 batch GPUs on m5386.

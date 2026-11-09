@@ -908,3 +908,638 @@ out. Quirk A against quirk B (per-quirk GNNs only): same-quirk target edges agai
 
 With "true = any two hits of one particle" (the purity definition) the all-edge AUC drops to 0.77-0.82, because the GNNs
 score non-neighbouring same-particle edges (not trained on) low; that version is not used.
+
+## Pileup 60 (from 2026-11-03)
+
+Splits (fixed before any training), for m200_L{278,774,2154}_mu60/v1 (100k events, events 0-99999, 500 per run):
+test = events 0-1999 (runs 0-3, the same convention as the grid test sets, which are runs 0-3 of every point);
+val = events 2000-2999; train = events 3000-99999 (data-scaling subsets are nested prefixes of this range, e.g.
+3000-18999 = 16k, 3000-52999 = 50k, 3000-99999 = 97k). R1-layout copies for evaluate.py and the loaders:
+quirk_tracking_data/parquet_r1_mu60/<set>/ (convert_to_r1.py, made by the MaskFormer agent, shared by both).
+Size: ~67k tracker hits per event at mu 60 (median; p99 101k, max 120k), against ~4k at mu 0.
+
+### Step 1: size check with the mu 0 graph models (GNN side), 2026-11-03
+
+Inputs: cluster-direction features re-derived for mu 60 exactly as for mu 0 (re-digitisation of the kept edm4hep
+with measurements.root, 7.6 min per 500-event run; every hit identical to production; tracking/pileup60/mu60_prep.sh,
+mu60_direction.py; quirk_tracking_data/direction/m200_L774_mu60/). Caches: tracking/pileup60/make_cache60.py (one
+vectorised pass writing the direction and pair caches; reproduces the mu 0 caches exactly on events 17000-17999:
+every field and every chain edge identical), 2 min and ~13 GB memory per 1000-event block, 6 GB per block per cache
+(pscratch quirk_pu60/cache/, scratch). Measurement: tracking/pileup60/sizecheck.py, one A100, mu 60 events 0-49
+against mu 0 events 17000-17019; truth-edge recall = truth chain edges present / all (quirk: either quirk's chain;
+pair graph: the pair chain on the pair cache). Outputs /pscratch/sd/d/danieltm/quirk_pu60/size/size_mu{0,60}.json.
+
+| | mu 0 | mu 60 |
+|---|---|---|
+| hits per event (max) | 4294 (7487) | 69547 (102334) |
+| quirk hits per event | 23.8 | 27.0 |
+| graph v3 edges per event, before filter (hits at the k = 512 cap) | 0.54M (8%) | 22.8M (95%) |
+| graph v3 after filter cut 0.001: edges / quirk recall / all-edge recall / technical recall | 132k / 0.975 / 0.993 / 1.000 | 12.5M / 0.959 / 0.969 / 0.999 |
+| graph v3 at filter cut 0.01 / 0.05 / 0.1: edges, quirk recall | 50k 0.949 / 23k 0.901 / 16k 0.851 | 5.9M 0.930 / 2.6M 0.874 / 1.6M 0.838 |
+| pair graph after filter cut 0.005: edges / pair-chain recall | 60k / 0.890 | 7.3M / 0.882 |
+| pair graph at cut 0.05 / 0.1: edges, pair-chain recall | 22k 0.741 / 15k 0.659 | 2.4M 0.769 / 1.5M 0.698 |
+| GPU time per event: embedding / radius graph / filter | 1 / 2 / 25 ms | 5 / 186 / 934 ms |
+| peak GPU memory, graph / filter | 0.3 / 5.3 GB | 5.5 / 6.0 GB |
+
+The mu 0 graph models keep the quirk truth edges at mu 60 (0.959 vs 0.975), but the graphs are ~100 times larger
+(12.5M edges per event after the v3 filter; 95% of hits saturate k = 512), so GNN training on them is not practical;
+tightening the filter cut loses quirk edges faster than at mu 0. Hit charge does not separate quirk hits
+(geometric digitisation: sum_activation medians equal for quirk and other hits in every volume). Decision (with the
+coordinator): one shared, graph-based hit filter for both the GNN and MaskFormer, keeping quirk hits and hits of
+pT > 1 GeV target particles (acceptance on val: >= 99% quirk-pair hits, >= 98% pT > 1 hits, <= ~15k hits/event).
+At mu 60 there are 4.6k pT > 1 GeV target hits and 15.2k pT > 0.5 GeV target hits per event (events 0-199).
+B3 quirk tagger: refitted with the fakes/quality.py protocol and saved (quirk_tracking_data/models/tagger/
+b3_pair_gnn_s0_cc_mu0/; cuts 0.01869 / 0.00180 and all 934,273 test scores identical to the 26 Oct run).
+
+### Graph route at mu 60: hit filter and filter retraining (GNN side), 2026-11-03
+
+Hit filter (tracking/pileup60/hitfilter.py; runs /pscratch/sd/d/danieltm/quirk_pu60/hitfilter/): per-hit GNN on each
+hit's 12 nearest hits in the frozen mu 0 v1 embedding (hit + cluster-direction features, pair features, embedding
+distance), target = quirk hit or hit of a pT > 1 GeV target particle (quirk weight 20), trained at mu 60 on events
+3000-12999 (warmup / constant / linear decay over the last 20% planned for 20k steps), val events 2000-2099. Both arms
+stopped early (no decay reached), because the quirk-hit recall was far from the 99% acceptance:
+
+| Arm | Step | Quirk-hit recall / pT > 1 hit recall / hits kept per event |
+|---|---|---|
+| hf_v1 (k = 12, hidden 96, 4 iterations) | 6000 | 0.61 / - / 13.7k (cut 0.02); 0.43 / 0.94 / 7.1k (cut 0.1); 99% quirk recall needs 58.6k of 66.7k hits |
+| hf_v3 (+ 4 nearest same-layer hits < 50 mm as a second edge type; hidden 128, 6 iterations) | 2000 | 0.71 / - / 27.0k (cut 0.02); 0.49 / 0.94 / 12.6k (cut 0.1) |
+
+pT > 1 GeV hits are easy to keep (0.93-0.94 at 7-13k hits), quirk hits are not: locally they look like pileup hits,
+and the same-layer partner edges did not change that. A per-hit filter with >= 99% quirk-hit recall would keep almost
+every hit, so it is not used.
+
+Edge filter retrained at mu 60 (tracking/pileup60/train_filter_stream.py): from the mu 0 filters (pair: v1 graph +
+e2_pair_dir_s0 filter, pair truth, quirk weight 10; per-quirk: graph v3 + g1f_qw10r075_q50, quirk weight 50),
+streamed over events 3000-12999, all positive and quirk-touching edges kept per step and other edges subsampled to 3M
+with weight 1/fraction, LR 3e-4 constant (decay planned over the last 20% of 5000 steps). Val (events 2000-2049),
+edges per event and quirk truth-edge recall:
+
+| Filter | cut 0.01 | 0.05 | 0.1 | 0.2 |
+|---|---|---|---|---|
+| per-quirk, mu 0 filter (step 0) | 5.35M 0.939 | 2.33M 0.892 | 1.42M 0.849 | 0.76M 0.781 |
+| per-quirk, mu 60 fine-tune step 2000 | 1.11M 0.761 | 0.33M 0.565 | 0.20M 0.489 | 0.12M 0.425 |
+| pair, mu 0 filter (step 0) | 5.04M 0.899 | 2.15M 0.787 | 1.29M 0.709 | 0.69M 0.606 |
+| pair, mu 60 fine-tune step 2000 | 1.07M 0.600 | 0.33M 0.458 | 0.20M 0.398 | 0.12M 0.343 |
+
+At matched edge count the fine-tuned filters keep fewer quirk edges than the mu 0 filters (per-quirk at ~1.1M: 0.76
+vs ~0.82 interpolated) and were flat from step 1000 to 2000; stopped at 2000 steps, before any LR decay. Conclusion:
+no gain before the decay; not tested with the decay (a full-schedule arm is worth running when GPU time allows, since
+the graph's quirk recall, 0.85, now caps the mu 60 result). Choice for the mu 60 GNNs: graph v3 with the mu 0
+filter at cut 0.1 (1.42M edges per event, quirk-edge recall 0.849, all truth edges 0.897 on these 50 val events), one
+graph set for both the pair GNN (pair truth, every same-pair edge true, as p3) and the per-quirk GNN.
+
+### MaskFormer side at mu 60: zero-shot and FlexGeo hit filter, 2026-11-03
+
+Scoring at mu 60: tracking/mu60_eval/ (shared). ACTS (evaluate.py) costs ~5 min per event per worker at mu 60
+(3.8 GB per worker), so it runs chunked (eval_chunked.sh: 250-event chunks, 4 at a time x 24 workers on one CPU
+node, counts summed exactly by combine_eval_chunks.py). Python scoring (py_score.py, ACTS's matching tie rule, track
+classes and selections; ~1.5 min per 2000 events) reproduces ACTS exactly at mu 0 (very loose and tight, all counts,
+t2e_pairdir_long test) and at mu 60: on the pair+direction zero-shot predictions (test events 0-1999, 8 chunks of 250,
+normal and pair truth) every count (quirk, quirk_event, technical, technical_sm accepted/total; tracks, matched,
+duplicate, fake) is identical to ACTS in every chunk at all four working points (compare_py_acts.py). Python is the
+default at mu 60; ACTS for the headline test numbers only (48 workers per node; 96 run out of memory).
+
+Zero-shot, m200_L774_mu60 test (events 0-1999), mu 0 models, object threshold 0.1, Python strict scoring:
+
+| Model | Tracks per event | Coupled vl strict / tight strict | Per quirk vl strict | technical_sm vl strict | Fake rate vl strict / tight strict |
+|---|---|---|---|---|---|
+| t2d_pair (pair target) | 1.3 | 0/1995 / 0/1995 | 0/3967 | 0.000 | 0.99 / 0.99 |
+| t2e_pairdir_long (pair + direction) | 6.7 | 10/1995 (0.005) / 1/1995 | 1/3967 | 0.004 | 0.63 / 0.93 |
+
+On ~67k hits per event the mu 0 models almost stop producing tracks (~200 targets per event).
+
+FlexGeo hit filter (configs/filter_mu60_flex.yaml; review FlexGeo port quirk/flexgeo.py: 10 layers, width 256,
+window |dphi| < 0.15, |deta| < 0.30, phi/eta RoPE, graph-free; label = quirk hit or hit of a charged primary
+pT > 1 GeV, |eta| < 4, >= 3-hit particle; quirk hits x10; Lion 5e-5, warmup 15%, linear decay over the last 20%,
+10k steps at 1 event per update, ~2 steps/s, 1.17 GPU-h; run filter_flex_v3). Val events 2000-2999, final
+checkpoint (curve: mu60_eval/filter_curve.py, /pscratch/sd/d/danieltm/quirk_mu60/filter_v3_val/curve_val.json):
+
+| Cut | Hits kept per event (of 66.4k) | Quirk-hit recall | Target-hit recall | Events with >= 99% quirk hits | Pair keeps > 50% / > 90% of its hits |
+|---|---|---|---|---|---|
+| 0.002 | 59.0k | 0.998 | 1.000 | 0.970 | 1.000 / 0.995 |
+| 0.005 | 46.8k | 0.986 | 1.000 | 0.900 | 0.999 / 0.963 |
+| 0.01 | 37.2k | 0.967 | 0.999 | 0.832 | 0.993 / 0.910 |
+| 0.02 | 28.6k | 0.935 | 0.998 | 0.749 | 0.970 / 0.845 |
+| 0.05 | 18.1k | 0.864 | 0.996 | 0.597 | 0.888 / 0.696 |
+| 0.075 | 14.3k | 0.819 | 0.994 | 0.544 | 0.819 / 0.645 |
+| 0.1 | 12.2k | 0.785 | 0.993 | 0.510 | 0.756 / 0.623 |
+| 0.5 | 6.1k | 0.613 | 0.973 | 0.294 | 0.605 / 0.458 |
+
+Better than the GNN per-hit filters at equal hits kept (quirk-hit recall 0.82 vs 0.61-0.65 at ~14k), but the gate
+(>= 99% quirk-pair hits at <= ~15k hits) is not met: 99% quirk-hit recall needs ~50k hits. The last two columns are
+completeness ceilings on the coupled very loose / tight strict efficiency. Decision on the working point pending.
+
+### Step 2: zero-shot (mu 0 models, mu 0 cuts) on m200_L774_mu60 test events 0-1999, 2026-11-03
+
+One combined pass per event on an 80 GB A100 (tracking/pileup60/zs_fused.py: embedding -> graph -> filter at the mu 0
+cut -> GNN; edges with GNN score > 0.01 written, which covers every builder threshold), then the mu 0 builders
+(per-quirk GNN v3 g2_q50_dir_s0: walk + stitch 0.7; pair GNN e2_pair_dir_s0: components 0.5; >= 4 hits).
+Python strict scoring (tracking/mu60_eval/py_score.py, ACTS rules). Chunked ACTS (mu60_eval/eval_chunked.sh, 250-event
+chunks) gives the same counts: per-quirk GNN v3 713/3967 = 0.180 strict loose, 9/3967 tight, event 182/1978, technical_sm
+0.966; pair GNN coupled 471/1995 = 0.236, tight 71/1995 (pair truth); the normal-truth ACTS run of the pair GNN is pending.
+Outputs /pscratch/sd/d/danieltm/quirk_pu60/zs/m200_L774_mu60/.
+
+| Model | Strict loose / tight | Quirk event (strict loose) | technical_sm (strict) | Fake (strict) | Tracks per event | mu 0 strict loose / tight / fake |
+|---|---|---|---|---|---|---|
+| per-quirk GNN v3, walk + stitch (per-quirk) | 0.180 / 0.002 | 0.092 | 0.966 | 0.455 | 5630 | 0.748 / 0.103 / 0.117 |
+| pair GNN, components 0.5 (coupled, pair truth) | 0.236 / 0.036 | - | 0.964 | 0.319 | 4568 | 0.944 / 0.688 / 0.079 |
+| pair GNN, components 0.5 (per-quirk, normal truth) | 0.096 / 0.000 | 0.007 | 0.964 | 0.319 | 4568 | - |
+| gated splitter chain: pair GNN components -> B3 tagger (mu 0 fit, cut 0.0187) -> 1M splitter d256 l6 (per-quirk) | 0.127 / 0.017 | 0.083 | 0.961 | 0.368 | - | 0.828 / 0.505 / 0.082 |
+
+Per event (2000 events): filtered edges 12.1M (v3, cut 0.001) / 7.0M (pair, cut 0.005); GNN edge efficiency at 0.5
+for quirk truth edges, mean over events, 0.32 (v3) / 0.31 (pair) against 0.67 / 0.84 at mu 0; time graph + filter 1.1 s,
+GNN 4.8 s (v3) / 2.7 s (pair); GNN peak memory mean 27 / 16 GB, max 57 / 38 GB. GPU 3.3 + 2.1 h (m5386).
+Gated chain at mu 60: the mu 0 B3 tagger tags 740k of 9.1M pair-GNN tracks (370 per event; 1.6 ordinary per event at
+mu 0), and the splitter splits 561k of them, mostly ordinary tracks.
+
+FlexMaskFormer training step time (maskformer_mu60.yaml: FlexGeo encoder 10 x 256, 8 decoder layers, 256 queries,
+review losses, bf16, one A100, 1 event per update), real mu 60 events 3000-3039 with synthetic hit masks (all target
+and quirk hits kept, random other hits up to N), 80 steps through the real training path (job 60747791):
+29k hits 2.6 steps/s (6.5 GB peak), 37k hits 2.05 steps/s (8.2 GB), all ~68k hits 1.2 steps/s (18.7 GB). For 30k
+updates: 3.2 / 4.1 / 7.0 GPU-h. The data loader needs row_group_cache_size >= 3 (hits, particles, mask files of a
+1000-event block); with 1 every event re-reads the 3 GB hit file and training runs at ~0.1-0.4 steps/s.
+
+### Step 3a: pair GNN trained at mu 60 (16k events, 2 seeds), 2026-11-03
+
+Graph: graph v3 (g1_qw10 embedding, r 0.075, k <= 512) + mu 0 filter g1f_qw10r075_q50 at cut 0.1, precomputed per
+1000-event block (tracking/pileup60/graph_apply60.py; 1.49M edges/event, ~1100-1200 s per block on one A100, 15 GB
+per block, memory-mapped layout; val block: quirk truth-edge recall 0.849, all 0.897, technical 0.984).
+Trainer: tracking/pileup60/train_gnn60.py (streamed; p3 target: pair cache, every same-pair edge true; direction
+features; quirk weight 10; AdamW LR 5e-4, warmup 1000, constant, linear decay to 0 over the last 20% (24k-30k), no
+early stopping, final checkpoint tested). One event per step; training graphs larger than 400k edges are cropped to a
+phi window (half the windows centred on a quirk hit; truth used only to choose crops); val and test use full graphs.
+0.33 s/step; 30k steps = 2.8 h per seed. Train events 3000-18999, val 2000-2199 (track val: components 0.5, >= 4
+hits, Python strict on the pair cache). Test 0-1999: components 0.5, >= 4 hits (the mu 0 cut, not re-tuned), Python
+strict scoring (py_score.py; it matched ACTS exactly on the zero-shot runs). Runs /pscratch/sd/d/danieltm/quirk_pu60/gnn/pair_16k_s{0,1}.
+
+Val (coupled strict loose / tight, 200 events) by step, seed 0 / seed 1: 4k 0.21 / 0.23; 8k 0.36 / 0.05; 12k 0.40 / 0.36;
+16k 0.41 / 0.37; 20k 0.22 / 0.52; 24k 0.48 / 0.53 (end of constant LR); 28k 0.54 / 0.55; 30k 0.535 / 0.556 (tight 0.11 /
+0.11). The constant-LR phase is noisy (0.22-0.52 between points); the decay gives a further +5-6 points loose.
+
+| Model (test 0-1999) | Coupled strict loose / tight | Per-quirk strict loose / tight (normal truth) | technical_sm (strict) | Fake (strict) |
+|---|---|---|---|---|
+| pair GNN zero-shot (mu 0 model, mu 0 cuts) | 0.236 / 0.036 | 0.096 / 0.000 | 0.964 | 0.319 |
+| pair GNN trained at mu 60, 16k, 2 seeds | 0.538 +- 0.004 / 0.097 +- 0.007 | 0.075 / 0.001 | 0.960 | 0.314 |
+| (mu 0 reference: pair GNN at mu 0, 3 seeds) | 0.944 / 0.688 | - | 0.986 | 0.079 |
+
+Training at mu 60 more than doubles the coupled efficiency over zero-shot, but it stays far below mu 0. The
+edge-level breakdown below shows that the GNN, not the graph, is the limit. The fake rate (0.31, against 0.08 at mu 0)
+is broken down below. GPU: 2 x 2.8 h training + 2 x 0.3 h test inference (window 60750403).
+
+Fake breakdown at mu 60 (B1 categories, normal truth, strict; tracking/pileup60/decompose60.py, counts identical to the
+Python strict scoring; /pscratch/sd/d/danieltm/quirk_pu60/fakes_b1/decompose.json). Quirk-related fakes (a, b, c) are
+< 0.15% of the fakes in every set; the rest are ordinary particles:
+
+| Prediction set (test 0-1999) | Fake rate | (e) piece of an ordinary track | (d) merged ordinary tracks | Fakes with <= 5 hits | (e): majority pT < 1 GeV / secondary | Fake rate at 4 / 6 / 8 / 10 / 12 hits |
+|---|---|---|---|---|---|---|
+| pair GNN trained at mu 60, s0, components 0.5 | 0.315 | 0.868 | 0.131 | 0.53 | 0.98 / 0.88 | 0.62 / 0.43 / 0.22 / 0.12 / 0.08 |
+| pair GNN zero-shot, components 0.5 | 0.319 | 0.840 | 0.159 | 0.55 | 0.98 / 0.88 | 0.65 / 0.44 / 0.20 / 0.12 / 0.08 |
+| per-quirk GNN v3 zero-shot, walk + stitch | 0.455 | 0.438 | 0.561 | 0.39 | 0.99 / 0.90 | 0.72 / 0.62 / 0.45 / 0.28 / 0.20 |
+
+As at mu 0, the fakes are short low-pT pieces of ordinary (mostly secondary) particles; the walk also merges ordinary
+tracks at mu 60 (56% of its fakes). The fake rate rises again above 15 hits (pair GNN: 0.15 at 15-19, 0.37 at 20-29, 0.46
+at >= 30 hits; not broken down by category per bin).
+
+Components cut re-tuned on mu 60 val (2000-2999, pair GNN 16k, Python strict, pair truth; rule: highest mean coupled
+loose over the two seeds), then test once:
+
+| Cut | Val coupled loose / tight, s0 | s1 | Val fake (s0 / s1) | Val technical_sm (s0 / s1) |
+|---|---|---|---|---|
+| 0.3 | 0.325 / 0.047 | 0.355 / 0.056 | 0.318 / 0.314 | 0.914 / 0.925 |
+| 0.4 | 0.465 / 0.070 | 0.496 / 0.087 | 0.313 / 0.311 | 0.945 / 0.953 |
+| 0.5 | 0.527 / 0.091 | 0.534 / 0.109 | 0.314 / 0.313 | 0.958 / 0.963 |
+| 0.6 | 0.526 / 0.108 | 0.538 / 0.120 | 0.317 / 0.317 | 0.962 / 0.966 |
+| 0.7 | 0.492 / 0.119 | 0.494 / 0.114 | 0.322 / 0.321 | 0.961 / 0.963 |
+| 0.8 | 0.426 / 0.092 | 0.422 / 0.082 | 0.327 / 0.326 | 0.956 / 0.957 |
+| 0.9 | 0.305 / 0.035 | 0.294 / 0.030 | 0.333 / 0.330 | 0.942 / 0.944 |
+
+Chosen 0.6 (mean loose 0.532 vs 0.531 at 0.5: a tie within val noise; tight +1.4 points). Test at 0.6: coupled
+0.520 +- 0.001 / 0.112 +- 0.005 (s0 0.521 / 0.109, s1 0.519 / 0.116), fake 0.318 / 0.317, technical_sm 0.961 / 0.965
+(at 0.5: 0.538 / 0.097, fake 0.314). The cut moves loose and tight in opposite directions by ~1.5 points; it is not
+what limits the mu 60 result. Headline (val-chosen): 0.520 / 0.112.
+
+Edge-level breakdown of the mu 60 pair GNN on test (tracking/pileup60/edge60.py, CPU; universe = the GNN input graph,
+edges with GNN score <= 0.01 were not stored and count as score 0; truth from the pair cache). Ceilings per pair
+(1995 pairs with >= 3 hits): largest connected component of pair hits joined by (i) any pair edge in the graph,
+(ii) pair edges with GNN score above the cut; "found" if it holds > 50% (> 90%) of the pair's hits.
+
+| Quantity | mu 60 pair GNN s0 / s1 | mu 0 pair GNN (own graph, 3 seeds; edge_eval) |
+|---|---|---|
+| AUC, pair edges vs wrong edges touching a quirk hit | 0.953 / 0.952 | 0.998 |
+| pair-chain edge efficiency at 0.5 (incl. edges missing from the graph) | 0.424 / 0.417 | 0.840 |
+| purity of quirk-touching edges above 0.5 / 0.6 | 0.80 / 0.81, 0.84 / 0.85 | 0.977 (at 0.5) |
+| wrong quirk-touching edges kept per event at 0.5 / 0.6 | 11.1 / 9.9, 7.7 / 7.0 | - |
+| ceiling (i) graph: pairs connectable at > 50% / > 90% | 0.938 / 0.716 | - |
+| ceiling (ii) GNN at 0.5: kept pair edges connect > 50% / > 90% | 0.569 / 0.247, 0.572 / 0.235 | - |
+| ceiling (ii) GNN at 0.6 | 0.524 / 0.196, 0.522 / 0.189 | - |
+| actual coupled strict loose / tight (components 0.6; 0.5) | 0.521 / 0.109, 0.519 / 0.116 (0.535 / 0.090, 0.541 / 0.104) | 0.944 / 0.688 (0.5) |
+
+The graph (mu 0 filter, cut 0.1) still connects > 50% of the hits for 94% of the pairs (> 90% for 72%), so it is not
+the main limit. The GNN keeps only ~60% of the pair edges in the graph at 0.6 and its kept pair edges connect > 50%
+of the hits for only 52-57% of the pairs, which is where the built tracks end up (0.52-0.54). The loss is in the GNN's
+edge discrimination at mu 60 (AUC 0.95 against 0.998 at mu 0), not in the graph or the track builder.
+
+Quality cut at mu 60 (coupled efficiency vs background rejection; tracking/pileup60/roc60.py = fakes/coupled_roc.py
+recipe: B2 track-quality score, gradient-boosted trees on the quality.py features incl. GNN edge-score features,
+label "not a fake on the pair truth", quirk-majority good tracks x30; trained on val 2000-2499, operating cuts chosen
+on val 2500-2999, curve on test 0-1999 once). Model: pair GNN mu 60 s0, components 0.6. Model saved
+(/pscratch/sd/d/danieltm/quirk_pu60/roc/pair60_s0_cc0.6/quality.pkl; roc_test.csv, roc_valB.csv, roc.json).
+
+| Operating point (cut from val B) | Coupled strict loose / tight (test) | Fake (strict) | Rejection 1/fake | technical_sm | Tracks per event |
+|---|---|---|---|---|---|
+| no cut | 0.521 / 0.109 | 0.318 | 3 | 0.961 | 4751 |
+| keep 99% of val-B coupled eff (cut 0.513) | 0.511 / 0.109 | 0.072 | 14 | 0.955 | 3152 |
+| keep 95% (cut 0.744) | 0.484 / 0.109 | 0.029 | 34 | 0.946 | 2754 |
+| keep 90% (cut 0.850) | 0.451 / 0.107 | 0.015 | 66 | 0.936 | 2540 |
+
+Read off the test curve: coupled 0.502 at fake 0.05, 0.464 at 0.02, 0.421 at 0.01; rejection 22 / 68 / 129 / 304 at
+coupled efficiency 0.50 / 0.45 / 0.40 / 0.30 (mu 0: rejection 718 +- 75 at coupled 0.80; coupled 0.935 at fake 0.02).
+As at mu 0, the quality cut removes most fakes (0.32 -> 0.07) for ~1 point of coupled efficiency.
+
+### Step 3b: per-quirk GNN trained at mu 60 (16k events, 2 seeds), 2026-11-03
+
+Same graphs and recipe as the pair GNN (graph v3 + mu 0 filter at 0.1; normal cache, per-quirk truth; quirk weight
+10; 30k steps, constant LR then linear decay over 24k-30k; final checkpoint). Track val on 2000-2049 (walk + stitch at
+mu 60 is slow on CPU). Test 0-1999: walk + stitch 0.7, >= 4 hits (mu 0 builder), Python strict. Models
+quirk_tracking_data/models/gnn_pu60/quirk_16k_s{0,1}.
+
+| Model (test 0-1999) | Per-quirk strict loose / tight | Quirk event (strict) | technical_sm | Fake (strict) | Tracks per event |
+|---|---|---|---|---|---|
+| per-quirk GNN v3 zero-shot (mu 0 model, its own graph at filter cut 0.001) | 0.180 / 0.002 | 0.092 | 0.966 | 0.455 | 5630 |
+| per-quirk GNN trained at mu 60, 16k, 2 seeds | 0.166 +- 0.003 / 0.004 | 0.073 | 0.976 | 0.397 | 5810 |
+| (mu 0 reference, 2 seeds) | 0.748 / 0.103 | 0.622 | 0.991 | 0.117 | - |
+
+Val strict loose (50 events) rose from 0.08-0.10 (4k) to 0.22-0.23 (28k, in the decay). Training at mu 60 on the
+tighter graph gives no gain over zero-shot for the per-quirk task (slightly lower efficiency, lower fake rate); at mu
+60 the per-quirk task sits at ~0.17, against ~0.52 for the coupled task. GPU: 2 x ~3.8 h.
+
+Decision (Daniel, 2026-11-03): no hit filter for MaskFormer at mu 60 ("I don't want to have ANY reason to not find a
+quirk"); the FlexGeo filter v3 checkpoint and curve are kept as a record.
+
+FlexMaskFormer on all hits, 16k-event trunk (train events 3000-18999, seed 0; maskformer_mu60.yaml with
+hit_mask_dir null; constant LR 5e-5 after a 1.5k warmup, 24k steps, 1.14 steps/s, 5.9 GPU-h; spike guard skipped
+0-3 updates). Peak GPU memory on the largest events: 25.8 / 25.3 / 28.0 GB at 121.5k / 119.2k / 131.7k hits (A100
+40 GB). Decay branches (linear to ~0 over the last 20%, fresh epoch from the trunk checkpoint, seed S), Python strict
+scoring on val events 2000-2999 (1000 events; object threshold 0.1; predictions under
+/pscratch/sd/d/danieltm/quirk_mu60/predictions/):
+
+| Branch | Coupled vl strict | Coupled tight strict | Per quirk vl strict | technical_sm vl / tight strict | Fake rate vl / tight strict |
+|---|---|---|---|---|---|
+| 8k to 10k | 0.050 | 0.005 | 0.010 | 0.672 / 0.370 | 0.074 / 0.443 |
+| 16k to 20k | 0.133 | 0.011 | 0.022 | 0.722 / 0.465 | 0.038 / 0.346 |
+| 24k to 30k | 0.151 | 0.011 | 0.024 | 0.731 / 0.491 | 0.031 / 0.316 |
+
+Ordinary tracks are learned (technical_sm 0.73 very loose strict), the pair slowly: the pu0 16k pair model reached
+0.55-0.70 coupled by 10-16k steps. The quirk pair's hits span a median 0.47 in phi and 1.04 in eta (7% of pairs
+inside one 0.15 x 0.30 window; 63% of pair hit-pairs within a window, vs 73% for pT > 1 GeV tracks). Wide-window
+option measured (|dphi| < 0.5, |deta| < 1.0): 0.97 steps/s on all hits, same peak memory (18.7 / 28.0 GB).
+
+### Step 3c: pair GNN data scaling at mu 60 (16k vs 50k events), 2026-11-03
+
+50k arm: train events 3000-52999 (graphs for 19-52 built for it), one constant-LR trunk (seed 0, same recipe), with
+(i) a branch from the trunk state at step 24000 decaying linearly over 24k-30k (compute-matched to the 16k arm) and
+(ii) the trunk itself decaying over 48k-60k (pending). The trunk stalled once (~1 h, a track-val worker pool, most
+likely a host-memory kill on the 1-GPU batch node; restarted from its step-15500 state with 6 workers).
+
+| Arm | Val coupled strict loose / tight at 0.5 (0.6) | Test at the val-chosen cut | Test at 0.5 |
+|---|---|---|---|
+| 16k, 30k steps, 2 seeds | 0.531 / 0.100 (0.532 / 0.114) | cut 0.6: 0.520 +- 0.001 / 0.112 +- 0.005 | 0.538 +- 0.004 / 0.097 +- 0.007 |
+| 50k, 30k steps (branch), seed 0 | 0.548 / 0.107 (0.526 / 0.123) | cut 0.5: 0.529 / 0.099 | 0.529 / 0.099 |
+| 50k, 60k steps (trunk) | pending | | |
+
+Trunk val (constant LR, 200 events): 0.38 (8k), 0.42 (12k), 0.47 (20k), 0.47 (24k), 0.54 (40k); the 24k->30k branch
+decay gave 0.50, 0.51, 0.55 at 26k, 28k, 30k. At the same step budget (30k) the 50k arm is not better on test than
+the 16k arm (0.529 vs 0.538 at 0.5); fake 0.314, technical_sm 0.960.
+
+### Diagnostics on val (2000-2999), after the second opinions, 2026-11-04 (CPU)
+
+Code check: in gnn/train_gnn.py (batch(), `w = w * where(hit_quirk[src] | hit_quirk[dst], QW, 1)`) and therefore in
+pileup60/train_gnn60.py, the quirk weight multiplies every edge touching a quirk hit: true pair edges and wrong
+quirk-touching edges alike. The running arm pair_16k_qw40_s0 is "all quirk-touching edges x40". Prepared, not launched:
+pileup60/pair_norm3.sbatch (train_gnn60.py --loss-mode norm3: separately normalised BCE for true quirk edges / wrong
+quirk-touching edges / ordinary edges, weights --norm3-w; --crop-mode pair: quirk crops centred on the pair's
+circular-mean phi and widened to hold the whole pair + 0.1 rad).
+
+Training-crop audit (pileup60/crop_audit.py; 995 quirk-centred crops on train 3000-3199): windows are ~2.0 rad wide
+(median pair phi spread 0.30 rad); 96% of the pair's hits are inside on average, 81% of crops hold the whole pair, 11%
+hold < 90%, 3% hold <= 50%; the largest connected group of pair hits (pair edges inside the crop) holds 0.877 of the
+pair's hits on average, against 0.896 on the full graph. The crops cost little.
+
+Builder study (pileup60/builders60.py, coupled strict on the pair cache, paired event bootstrap of the difference to
+components at 0.5, 1000 resamples, 95% interval). Failure classes at > 50% for the 995 val pairs, components 0.5
+(s0 / s1 / 50k branch): fragmentation (best track holds <= 50% of the pair's hits) 367+18 / 351+20 / 361+19 (of which
+18-20 are a track holding one quirk alone), absorption (> 50% complete, <= 50% pure) 49 / 44 / 33, no pair hit on
+any track 37 / 49 / 37. At > 90% (s0): incomplete 222, impure 155. So at loose the loss is fragmentation (missing
+pair edges), not wrong bridges; at tight both matter.
+
+| Builder (val) | s0 loose / tight / fake | s1 | 50k branch | d loose, d tight vs cc 0.5 (s0; s1; 50k) |
+|---|---|---|---|---|
+| components 0.5 | 0.527 / 0.091 / 0.314 | 0.534 / 0.109 / 0.313 | 0.548 / 0.107 / 0.314 | - |
+| components 0.6 | 0.526 / 0.108 / 0.317 | 0.538 / 0.120 / 0.317 | 0.526 / 0.123 / 0.318 | -0.001, +0.016*; +0.004, +0.011; -0.022*, +0.016* |
+| two-threshold 0.6 / 0.3 (single hits attach) | 0.550 / 0.097 / 0.352 | 0.553 / 0.102 / 0.350 | 0.556 / 0.106 / 0.352 | +0.023*, +0.006; +0.019*, -0.007; +0.008, -0.001 |
+| bridge cut 0.5 / 0.6 (drop edges < 0.6 without triangle support) | 0.529 / 0.106 / 0.317 | 0.548 / 0.118 / 0.316 | 0.532 / 0.122 / 0.317 | +0.002, +0.014*; +0.014*, +0.009; -0.016*, +0.015* |
+| bridge cut 0.5 / 0.7 | 0.524 / 0.118 / 0.320 | 0.525 / 0.117 / 0.319 | 0.521 / 0.113 / 0.321 | -0.004, +0.026*; -0.010, +0.008; -0.027*, +0.006 |
+
+(* = 95% interval excludes 0; more settings in val/builders60.json of each run.) No builder improves loose and tight
+together on all three models: two-threshold buys ~2 points loose at +3.8 points fake; bridge cuts and a higher
+component cut buy 1-2.6 points tight at 0-3 points loose. The builders do not recover the gap to the GNN-edge ceiling
+(loose 0.57 / tight 0.24 at 0.5) because most failures are missing pair edges. Not tested on the test set.
+
+Edge scan on val (pileup60/edge60.py, EDGE_BLOCKS=2; s0 / s1 / 50k nearly identical): AUC 0.951 / 0.949 / 0.947.
+Pair-edge recall (any edge joining two pair hits, of those in the graph) at a fixed number of wrong quirk-touching
+edges kept per event (s0): 0.42 at 2, 0.53 at 5, 0.63 at 10, 0.72 at 20, 0.83 at 50, 0.89 at 100 (50k: 0.41 / 0.53 /
+0.62 / 0.72 / 0.82 / 0.89). Cut scan (s0): cut 0.05: kept 0.875, purity 0.42, 83 wrong/event, ceiling 0.80 / 0.52;
+0.1: 0.829, 0.52, 51, 0.76 / 0.46; 0.3: 0.725, 0.70, 21, 0.64 / 0.33; 0.5: 0.644, 0.79, 11, 0.57 / 0.24; 0.7: 0.533, 0.88,
+5, 0.49 / 0.16. Pair-edge recall at 0.5 by the smaller graph degree of its two hits: 0.69 (< 50 edges, 83% of pair
+edges), 0.42 (50-100, 17%), 0.23 (100-200, 0.6%); the GNN loses pair edges in dense regions. The 50k data (same steps)
+changes none of these numbers: more data at this model and graph does not help.
+
+### Headline candidate: pair GNN 50k trunk, 60k steps; gated splitter chain at mu 60 (2026-11-04)
+
+50k trunk (train 3000-52999, constant LR to 48k, linear decay 48k-60k, final checkpoint). Val (2000-2999) components
+cut scan: 0.3 0.441 / 0.090; 0.4 0.561 / 0.115; 0.5 0.600 / 0.152; 0.6 0.581 / 0.147; 0.7 0.544 / 0.143 (fake 0.29-0.33)
+-> 0.5. Test once (Python strict; chunked ACTS pending: 60787558 pair truth, 60787559 normal truth):
+
+| Pair GNN (test 0-1999, components 0.5) | Coupled strict loose / tight | Per-quirk (normal truth) | technical_sm | Fake |
+|---|---|---|---|---|
+| 16k, 30k steps, 2 seeds | 0.538 +- 0.004 / 0.097 +- 0.007 | 0.075 | 0.960 | 0.314 |
+| 50k, 30k steps (branch) | 0.529 / 0.099 | 0.081 | 0.960 | 0.314 |
+| 50k, 60k steps (trunk) | 0.595 / 0.134 | 0.094 | 0.969 | 0.293 |
+
+The 60k-step trunk is +6 points loose over both 30k-step arms; data alone (16k -> 50k at 30k steps) gave nothing, so the
+gain is from the longer schedule (not separated from data: no 16k run at 60k steps).
+
+B3 quirk tagger retrained at mu 60 (pileup60/tagger60.py; fakes/quality.py features; trained on val 2000-2499 with the
+positives weighted to balance the classes, because only 514 of 2.4M training tracks are quirk-majority and the
+unweighted mu 0 recipe gave a constant score; cut at 90% efficiency for quirk tracks good in the pair truth on val
+2500-2999). Models: quirk_tracking_data/models/tagger/b3_pair60_50k_{trunk,b30k}_cc0.5/. On the trunk's test tracks:
+cut 0.942, efficiency 0.916 for pair-good quirk tracks, 0.68 tracks tagged per event (0.10 ordinary) (mu 0 tagger at
+mu 60: 370 per event).
+
+Gated splitter chain (trunk components 0.5 -> mu 60 tagger -> 1M splitter d256 l6 trained at mu 0, unchanged; split
+only if both parts >= 3 hits, "neither" hits stay on the original track): 1365 tracks gated, 1354 split (0.68 per event).
+
+| Per-quirk (test 0-1999, normal truth) | Strict loose / tight | Quirk event (strict) | technical_sm | Fake |
+|---|---|---|---|---|
+| gated splitter chain, trunk + mu 60 tagger | 0.350 / 0.077 | 0.281 | 0.969 | 0.293 |
+| per-quirk GNN trained at mu 60 (16k, 2 seeds) | 0.166 / 0.004 | 0.073 | 0.976 | 0.397 |
+| zero-shot chain (mu 0 GNN + mu 0 tagger) | 0.127 / 0.017 | 0.083 | 0.961 | 0.368 |
+| (mu 0 chain) | 0.828 / 0.505 | 0.768 | 0.987 | 0.082 |
+
+At mu 60 the splitter route doubles the per-quirk efficiency of the per-quirk GNN (0.35 vs 0.17) at a lower fake rate.
+The chain's ceiling is the pair finding: coupled 0.595, of which the tagger keeps ~92%.
+
+ACTS (chunked, 8 x 250 events) on the trunk test predictions, pair truth: coupled strict 1187/1995 = 0.595, tight
+268/1995 = 0.134 (equal to the Python strict numbers); normal-truth ACTS run pending (job 60787558).
+
+### Loss-weight arm: pair GNN 16k, all quirk-touching edges x40 (2026-11-04)
+
+Daniel's point: at mu 60 the quirk edges' share of the loss fell. Measured shares of quirk-touching edges in the loss
+at weight 10: mu 0 pair GNN training graphs 0.064 (383 quirk-touching vs 56,285 other edges per event); mu 60 full
+graph 0.0065 (972 vs 1.48M); mu 60 training crops 0.017 (596 vs 337k per step). Weight 40 restores 0.064 on the crops
+(full-graph equivalent ~100). Note: in train_gnn.py / train_gnn60.py the weight multiplies every quirk-touching edge,
+true and wrong alike, so this arm is "all quirk-touching edges x40". Otherwise identical to pair_16k_s0 (seed 0, 16k,
+30k steps, same schedule). Compared on val only (2000-2999, components 0.5, paired event bootstrap, 2000 resamples):
+
+| Arm (val, components 0.5) | Coupled loose / tight | Fake | vs pair_16k_s0: d loose, d tight [95%] |
+|---|---|---|---|
+| pair_16k_s0 (weight 10) | 0.527 / 0.091 | 0.314 | - |
+| pair_16k_s1 (weight 10) | 0.534 / 0.109 | 0.313 | +0.007, +0.018 |
+| pair_16k_qw40_s0 (all quirk-touching x40) | 0.580 / 0.122 | 0.349 | +0.053 [+0.033, +0.072], +0.030 [+0.014, +0.046] |
+| pair_50k_b30k_s0 (50k, 30k steps) | 0.548 / 0.107 | 0.314 | +0.021 [+0.002, +0.041], +0.015 [+0.001, +0.029] |
+| pair_50k_trunk_s0 (50k, 60k steps) | 0.600 / 0.152 | 0.292 | +0.073 [+0.052, +0.094], +0.060 [+0.042, +0.078] |
+
+(qw40 vs s1: +0.046 [+0.028, +0.064] loose, +0.013 [-0.002, +0.028] tight; trunk vs 50k branch: +0.052 / +0.045.)
+The x40 weight gains ~5 points loose at 16k / 30k steps, at +3.5 points fake (0.349). The longer schedule (60k steps,
+50k data) gains more at a lower fake rate. Not tested on the test set. Prepared next arms (not run; budget):
+norm3 loss + whole-pair crops, degree-aware aggregation (smoke tests passed), and a 16k run at 60k steps to separate
+steps from data.
+
+### Arms at 60k steps (no GPU cap from 2026-11-04), val only, paired bootstrap against the trunk
+
+All: pair GNN, graph v3 + mu 0 filter at 0.1, 60k steps, warmup 1000, constant LR 5e-4, linear decay over 48k-60k, final
+checkpoint, 400k-edge phi crops (pileup60/arm60.sbatch). Val 2000-2999 (995 pairs), coupled strict, components at the
+val-best cut, paired event bootstrap (2000 resamples, 95% interval; pileup60/compare_runs.py). Test untouched.
+Per-event JSONs: quirk_tracking_data/results/pu60/gnn/<arm>/val/builders60_pe.json; comparisons:
+results/pu60/compare/val_vs_trunk.txt; models: models/gnn_pu60/<arm>/.
+
+| Arm | Change vs trunk | Val loose / tight (cut) | Fake | d loose, d tight vs trunk s0 [95%] |
+|---|---|---|---|---|
+| pair_50k_trunk_s0 | - | 0.600 / 0.152 (0.5) | 0.292 | - |
+| pair_50k_trunk_s1 | seed 1 | 0.605 / 0.144 (0.5) | 0.293 | +0.005 [-0.013, +0.025], -0.008 [-0.025, +0.010] |
+| pair_16k_60k_s0 | 16k events instead of 50k | 0.587 / 0.143 (0.5) | 0.293 | -0.013 [-0.032, +0.007], -0.009 [-0.025, +0.008] |
+| pair_50k_summean_qw40_s0 | summean aggregation (sum + mean + log degree) and all quirk-touching edges x40 | 0.650 / 0.175 (0.5) | 0.325 | +0.050 [+0.030, +0.070], +0.023 [+0.005, +0.041] (vs s1: +0.045, +0.031) |
+| pair_50k_norm3_paircrop_s0 | norm3 loss (1/1/1) + whole-pair crops (capped at 1.5x the budget width after an OOM) | 0.556 / 0.084 (0.9) | 0.485 | -0.044 [-0.066, -0.022], -0.068 [-0.088, -0.049] |
+| pair_50k_qw40_s0 | all quirk-touching edges x40 only (trunk aggregation) | 0.655 / 0.183 (0.5) | 0.323 | +0.055 [+0.035, +0.075], +0.031 [+0.013, +0.049] (vs s1: +0.050, +0.039) |
+
+- The trunk's two seeds agree within 0.5 points; 16k events at 60k steps is within noise of 50k: the earlier +6 points
+  of the trunk over the 30k-step arms come from the schedule, not the data.
+- The x40 quirk weight carries the whole gain: x40 alone gives 0.655 / 0.183 (+5.0 to +5.5 points loose, +3 to +4 tight
+  over the two trunk seeds), and summean adds nothing on top (summean + x40 vs x40: -0.005 [-0.023, +0.012] loose,
+  -0.008 [-0.024, +0.008] tight). Cost: fake +3 points (0.323 vs 0.292-0.293), as with x40 at 16k / 30k steps.
+  Val winner: pair_50k_qw40_s0 (one seed; not yet scored on test).
+- norm3 with equal weights shifts the edge scores up (1.0M edges/event above 0.01), the best components cut is 0.9,
+  and ordinary tracking degrades (2255 tracks/event, fake 0.49): the ordinary edges (~98% of edges) get a third of the
+  loss. Not a fair test of loss balancing; a retry should keep most of the weight on ordinary edges.
+- Direction features for blocks 94-99 added (re-digitised, every hit identical to production); all 100 blocks present.
+
+### Test scoring of the val winner pair_50k_qw40_s0 (2026-11-04; the only test use of this round)
+
+Pair GNN 50k events, 60k steps, all quirk-touching edges x40, components 0.5 (val-best). Test 0-1999, Python strict.
+Chunked ACTS (60837576 / 60837577) agrees: pair truth very_loose_strict 0.6496 (1296/1995) / tight_strict 0.1694,
+technical_sm 0.9579, fake 0.3234; normal (per-quirk) truth 0.0988 / 0.0008; non-strict very_loose 0.6586 pair.
+Summaries: results/pu60/gnn/pair_50k_qw40_s0/test/acts_{pair,quirk}_summary_combined.json.
+posw40 option (--qw-mode pos) smoke-tested on CPU (job 60840754): true quirk-touching edges weight 40, wrong ones 1,
+loss finite over 250 steps.
+
+| Quantity (test) | pair_50k_qw40_s0 | trunk s0 (weight 10) |
+|---|---|---|
+| coupled strict loose / tight | 0.650 / 0.169 | 0.595 / 0.134 |
+| fake (strict) / technical_sm | 0.323 / 0.958 | 0.293 / 0.969 |
+| quality cut at val-B fake 0.07 (cut 0.542): coupled / tight / fake / technical_sm | 0.632 / 0.167 / 0.070 / 0.952 | - |
+| quality cut at val-B fake 0.02 (cut 0.825): coupled / tight / fake / technical_sm | 0.587 / 0.165 / 0.020 / 0.932 | (trunk-era 16k s0: 0.464 at fake 0.02) |
+| mu 60 tagger (retrained on its val tracks): cut / pair-good efficiency / tagged per event (ordinary) | 0.776 / 0.916 / 0.82 (0.19) | 0.942 / 0.916 / 0.68 (0.10) |
+| gated splitter chain, per-quirk strict loose / tight | 0.397 / 0.098 | 0.350 / 0.077 |
+| chain quirk event / technical_sm / fake; tracks split | 0.330 / 0.958 / 0.323; 1611 | 0.281 / 0.969 / 0.293; 1354 |
+
+Quality model: quirk_tracking_data/models/quality_pu60/pair60_50k_qw40_cc0.5/ (fixed-fake working points chosen on val
+2500-2999, pileup60/roc60.py); tagger: models/tagger/b3_pair60_50k_qw40_cc0.5/; chain:
+results/pu60/chain/qw40_cc0.5_py_split.json.
+
+Arms a / c / d (2026-11-04), each a 16k-event trunk to 24k steps (constant LR) plus the 24k -> 30k linear decay
+branch, everything else as the baseline trunk; val events 2000-2999, Python strict scoring, object threshold 0.1;
+paired event bootstrap of the coupled very loose strict efficiency against the baseline 30k branch (0.151 / 0.011):
+
+| Arm | Change | Coupled vl strict / tight strict | technical_sm vl / tight strict | Fake vl / tight strict | vs baseline (vl strict, 95%) |
+|---|---|---|---|---|---|
+| baseline | - | 0.151 / 0.011 | 0.731 / 0.491 | 0.031 / 0.316 | - |
+| a | window 0.5 x 1.0 | 0.138 / 0.015 | 0.736 / 0.578 | 0.028 / 0.228 | -0.013 [-0.031, +0.004] |
+| c | pair x10 (object BCE, mask losses, matching cost) | 0.420 / 0.049 | 0.726 / 0.475 | 0.033 / 0.332 | +0.269 [+0.242, +0.298] |
+| d | warm start from pu0 s2_pair_n150k | 0.116 / 0.001 | 0.699 / 0.416 | 0.050 / 0.391 | -0.035 [-0.053, -0.017] |
+
+In-training val coupled (100 events) of arm c's trunk: 0.15 at 6k, 0.23 at 10k, 0.32 at 18k, 0.31 at 22k; branch
+0.47 at 30k. Arm d ran on the interactive slot in two parts (0-16k, then 16k-24k from a fresh epoch, seed 16000).
+pair_diag (val, all four 30k branches): almost every missed pair is missed because no query's own mask (mask prob
+>= 0.5, before the exclusive hit assignment) strictly matches it (baseline 842 of 845 missed, a 856 / 861, c 573 / 576,
+d 877 / 878); object score and competition between queries account for 0-5 pairs per arm. For 84-88% of missed
+pairs no query's mask holds any pair hit, while the query matched to the pair has object prob > 0.5 (90-98%). Found
+pairs: matched query own-mask efficiency median 0.71-0.77, purity 0.85-0.89. Results copied to
+quirk_tracking_data/results/pu60/maskformer/ (arms_30k_val.tsv, val_scores/, pair_diag/, bootstrap/, runs/).
+
+### Round 2 arms on the qw40 recipe (2026-11-05; val 2000-2999 only, no test use)
+
+Same recipe as qw40_s0: pair GNN, 50k events, 60k steps, warmup + constant + linear decay over the last 20%, final
+checkpoint. Builder study on val (builders60.py, coupled strict, best components cut per arm), paired event bootstrap
+(95% interval) against trunk s0 and against qw40_s0 at cc 0.5.
+
+| Arm | Best cut | Coupled loose / tight | Fake | B - trunk s0 (loose / tight) | B - qw40_s0 (loose / tight) |
+|---|---|---|---|---|---|
+| qw40_s0 (reference) | 0.5 | 0.655 / 0.183 | 0.323 | +0.055 / +0.031 | - |
+| qw40_s1 (second seed) | 0.5 | 0.647 / 0.173 | 0.324 | +0.047 [+0.029, +0.066] / +0.021 [+0.002, +0.040] | -0.008 [-0.024, +0.008] / -0.010 [-0.028, +0.007] |
+| qw100 | 0.5 | 0.654 / 0.174 | 0.345 | +0.054 [+0.033, +0.074] / +0.022 [+0.001, +0.043] | -0.001 [-0.017, +0.015] / -0.009 [-0.028, +0.010] |
+| qw100 | 0.6 | 0.615 / 0.184 | 0.340 | +0.015 [-0.005, +0.034] / +0.032 [+0.011, +0.052] | -0.040 / +0.001 |
+| posw40 (true quirk edges x40 only) | 0.95 | 0.601 / 0.110 | 0.337 | +0.001 [-0.016, +0.019] / -0.042 [-0.060, -0.025] | -0.054 / -0.073 |
+| norm3 1/1/8, pair crops | 0.9 | 0.587 / 0.118 | 0.325 | -0.013 [-0.035, +0.008] / -0.034 [-0.054, -0.015] | -0.069 / -0.066 |
+
+- The x40 gain reproduces with a second seed: qw40_s1 is within noise of s0 and above trunk s0 on both loose and tight.
+- x100 matches x40 on coupled efficiency and costs 2 more points of fake (0.345 vs 0.323); no reason to prefer it.
+- Weighting only the true quirk edges (posw40) loses: the scores of all quirk-touching edges go up, wrong ones included
+  (val, edge cut 0.5: 115 quirk-touching edges kept per event at quirk purity 0.125 and quirk efficiency 0.559, vs 54 at
+  0.221 and 0.467 for qw40_s0), so components merge until the components cut reaches 0.95, and the tight
+  efficiency drops. Down-weighting the wrong quirk-touching edges relative to the true ones is what x40 on all of them avoids.
+- norm3 with weights 1/1/8 and whole-pair crops recovers ordinary tracking (fake 0.325 at cut 0.9, vs 0.485 for equal
+  weights) but stays below trunk s0 on tight and below qw40 on both.
+- Val winner stays pair_50k_qw40_s0 (already scored on test above). GPU: 26.5 GPU-h for the four arms; running total in
+  notes/pu60/gpu_hours.txt is 84.9 GPU-h.
+- Files: models/gnn_pu60/<arm>/, results/pu60/gnn/<arm>/val/builders60_pe*.json, results/pu60/compare/val_vs_trunk.txt.
+
+### negw40: only wrong quirk-touching edges x40 (2026-11-05; val only, no test use)
+
+pair_50k_negw40_s0: same recipe as qw40_s0, --qw-mode neg (wrong quirk-touching edges x40, true pair edges at 1).
+CPU smoke test 60855172: weights 40 on wrong / 1 on true quirk-touching edges, loss finite over 150 steps.
+Scores shift down, so the components scan went to low cuts (0.05-0.6); best is cc 0.1.
+
+| Arm (best cut) | Coupled loose / tight | Fake | Failures on 995 pairs: ok / fragmentation / absorption / no track |
+|---|---|---|---|
+| qw40_s0 (0.5) | 0.655 / 0.183 | 0.323 | 652 / 279 / 14 / 39 |
+| posw40 (0.95) | 0.601 / 0.110 | 0.337 | 598 / 163 / 19 / 212 |
+| negw40 (0.1) | 0.382 / 0.083 | 0.250 | 380 / 461 / 126 / 1 |
+
+- negw40 - qw40_s0: loose -0.273 [-0.303, -0.243], tight -0.100 [-0.121, -0.078]; vs trunk s0: -0.218 / -0.069.
+- Weighting only the wrong edges is worse than weighting only the true ones, and both are below x40 on all quirk-touching
+  edges. negw40 keeps fewer true quirk edges (edge cut 0.1: quirk efficiency 0.357 vs 0.575 for qw40_s0, 39 vs 103
+  quirk-touching edges per event) and pairs fragment. posw40 keeps too many wrong ones and pairs merge or are lost.
+  The x40 gain needs both sides of the quirk-edge loss raised together.
+- GPU: 6.41 GPU-h; running total 91.3 GPU-h. Files: models/gnn_pu60/pair_50k_negw40_s0/,
+  results/pu60/gnn/pair_50k_negw40_s0/val/, results/pu60/compare/val_vs_trunk.txt.
+
+Combined arms (Daniel 2026-11-05), 60k steps (warmup 1.5k, constant LR, linear decay over 48k-60k, no early stopping,
+final checkpoint), 16k-event training set, configs maskformer_mu60_combined.yaml (pair x10) / _w25.yaml (pair x25) +
+maskformer_mu60_long60k.yaml: pair weight in object BCE, mask losses and matching cost; inputs x, y, z, r, layer_id,
+volume_id, 4 cluster-shape and 16 cluster-direction columns (no s / eta / phi, no position encoding); positive-hit
+weight 16 in the mask focal loss; baseline window 0.15 x 0.30; no warm start. w10 on the gpu_shared_interactive slot
+in chained 4 h windows (resume from the latest 500-step checkpoint, fresh epoch, seed = step; Lightning's Timer state
+dropped on resume), w25 as one batch job. Val events 2000-2999, Python strict scoring, object threshold 0.1, paired
+bootstrap against arm c (0.420 / 0.049):
+
+| Arm | Coupled vl strict / tight strict | technical_sm vl / tight strict | Fake vl / tight strict | vs arm c (vl strict, 95%) | vs arm c (tight strict, 95%) |
+|---|---|---|---|---|---|
+| comb_w10 | 0.546 / 0.088 | 0.682 / 0.513 | 0.053 / 0.282 | +0.126 [+0.104, +0.148] | +0.039 [+0.025, +0.054] |
+| comb_w25 | 0.000 / 0.000 (diverged) | 0.000 / 0.000 | 0.989 / 0.992 | - | - |
+
+In-training val (100 events) coupled: w10 0.15 (4k), 0.32 (8k), 0.38 (14k), 0.42 (20k), 0.47 (30k), 0.50 (36k),
+0.53 (42k), 0.54 (46k); w25 0.20 (4k), 0.23 (8k), 0.29 (14k), 0.47 (20k), 0.49 (30k), 0.52 (36k), 0.56 (38k), then 0.
+w25 diverged at step ~38.4k: loss 14 -> 4e4 between steps 38359 and 38409, gradient norms 1e10-1e12 afterwards; the
+spike guard then skipped every update to step 60k (22,657 skipped in total; the backstop adopts a new scale only for
+norms steady within x20, which these were not), so the model stayed in the diverged state. An earlier spike episode at
+22-24k (about 1,000 skipped updates) recovered. Last pre-divergence checkpoint: trunk-step=036000. w10 skipped 29+
+updates over 60k. Peak GPU memory 33.0 GB in both (A100 40 GB). pair_diag w10: 438 of 448 missed pairs have no query
+whose own mask matches the pair, 7 have one below the object threshold, 3 lose it in the final assignment; for 67% of
+missed pairs no query's mask holds a pair hit; found pairs: matched query own-mask efficiency median 0.86, purity
+0.81. Results: quirk_tracking_data/results/pu60/maskformer/ (val_scores/mf_comb_w*, pair_diag/, bootstrap/armc30k_vs_*,
+runs/mf_comb_w*/ with all window configs and metrics).
+
+### Per-class loss: does the quirk part overfit? (2026-11-05; inference only, no test use)
+
+Logging: train_gnn60.py now logs, at every interval, for train batches (crops, as trained) and for the val events (full):
+unweighted mean BCE of true pair edges / wrong quirk-touching edges / ordinary edges (live edges, as in norm3), the
+weighted contribution of each class to the optimised loss (the three sum to train_loss; checked), and quirk-edge
+efficiency and purity at 0.5. Default on (--no-class-log turns it off). Code: pileup60/class_loss60.py. Smoke test
+(GPU, 40 steps, seed 0): train_loss with logging on vs off differs by 1e-6, the same as two runs with logging off.
+
+Retrospective (pileup60/class_loss_retro.py): saved checkpoints of pair_50k_qw40_s0 and pair_50k_trunk_s0, full events
+(no crop) for both splits, the run's own loss weights; 200 training events (50 each from blocks 3000, 15000, 30000,
+45000) vs 200 val events (2000-2199). Gap = val - train, 95% interval from resampling events within each split.
+
+| Step | qw40 true-pair BCE train / val (gap) | qw40 wrong-quirk BCE train / val | qw40 quirk-edge eff train / val | qw40 quirk-edge pur train / val | trunk true-pair BCE gap |
+|---|---|---|---|---|---|
+| 4000 | 2.404 / 2.546 (+0.14 [-0.00, +0.26]) | 0.0277 / 0.0272 | 0.181 / 0.170 | 0.733 / 0.734 | +0.17 [-0.04, +0.36] |
+| 12000 | 1.483 / 1.621 (+0.14) | 0.0263 / 0.0272 | 0.476 / 0.440 | 0.836 / 0.818 | +0.14 |
+| 20000 | 1.056 / 1.189 (+0.13) | 0.0300 / 0.0318 | 0.616 / 0.572 | 0.809 / 0.796 | +0.23 |
+| 28000 | 1.326 / 1.532 (+0.21) | 0.0228 / 0.0239 | 0.535 / 0.485 | 0.868 / 0.841 | +0.18 |
+| 36000 | 1.199 / 1.343 (+0.14) | 0.0291 / 0.0290 | 0.549 / 0.505 | 0.838 / 0.828 | +0.18 |
+| 44000 | 0.967 / 1.111 (+0.14) | 0.0280 / 0.0298 | 0.669 / 0.636 | 0.825 / 0.804 | +0.22 |
+| 52000 | 1.103 / 1.236 (+0.13) | 0.0240 / 0.0266 | 0.626 / 0.586 | 0.868 / 0.833 | +0.19 |
+| 60000 | 0.769 / 0.877 (+0.11 [-0.08, +0.31]) | 0.0242 / 0.0271 (+0.003 [-0.001, +0.007]) | 0.709 / 0.676 | 0.867 / 0.836 (-0.031 [-0.059, -0.005]) | +0.15 [-0.07, +0.38] |
+
+- No sign of the quirk part overfitting: val true-pair BCE falls with train BCE at every checkpoint (qw40 2.55 -> 0.88),
+  and the train-val gap is the same at step 4000, when the model had seen at most 4000 of the 50k training events, as at
+  60000 (+0.14 vs +0.11). The gap is a difference between the two event samples, not memorisation.
+- Wrong-quirk BCE and quirk-edge purity show a small late gap (val purity 3 points lower at 52k-60k, interval just
+  excluding 0); the trunk has the same size gap (-0.029 [-0.062, +0.002] at 60k), so the x40 weight does not add to it.
+- Ordinary-edge BCE: gap +0.0002 throughout.
+- Both curves are non-monotonic (28000 is worse than 20000 for both runs): the constant-LR phase is noisy; the decay
+  (48k-60k) gives the lowest val values.
+- Caveat: 1.2 passes over 50k events, so each training event was seen once or twice by 60k steps.
+- GPU: 2 inference jobs (60888612, 60888613). Files: results/pu60/classlog/{pair_50k_qw40_s0,pair_50k_trunk_s0}.json
+  (per-event terms), summary.txt (all gaps with intervals), smoke_classlog_*_log.csv.
+
+Split losses (Daniel 2026-11-05): QuirkModel now logs, for train (every log_every_n_steps) and val, the final-layer
+loss components by target type as {stage}/split_<component>_<type>[_w] (quirk/split_losses.py; components object_bce,
+mask_dice, mask_focal; types pair, ord, and null for object BCE; plain = unweighted per-target mean, _w = that type's
+share of the loss actually optimised, with object weights, null weight and positive-hit weight; no gradient, training
+unchanged; on by default, log_split_losses=false turns it off). Check on one event: the _w parts sum to the task losses
+(object BCE exact, Dice and focal within 0.1%, fp32 vs bf16).
+
+Retrospective train-vs-val check (no training; mu60_eval/retro_split.py, job 60888608, 0.9 GPU-h): every saved
+checkpoint of mf_comb_w10 (4k ... 60k) and arm c (trunk 4k ... 24k, decay branch at 28k), on 200 training events the
+model saw (3000-3199) and 200 val events (2000-2199). Pair found = writer assignment, strict > 50% / > 50%.
+
+| Step (w10) | Pair found train / val | Pair focal x1e3 train / val | Pair Dice train / val | Pair own-mask completeness train / val | Ordinary Dice train / val |
+|---|---|---|---|---|---|
+| 4k | 0.21 / 0.14 | 1.31 / 1.31 | 0.78 / 0.83 | 0.30 / 0.23 | 0.811 / 0.812 |
+| 8k | 0.41 / 0.31 | 1.27 / 1.43 | 0.65 / 0.70 | 0.40 / 0.34 | 0.597 / 0.598 |
+| 16k | 0.46 / 0.36 | 1.00 / 1.20 | 0.63 / 0.69 | 0.42 / 0.37 | 0.510 / 0.521 |
+| 24k | 0.50 / 0.43 | 0.95 / 1.05 | 0.59 / 0.63 | 0.44 / 0.41 | 0.464 / 0.467 |
+| 32k | 0.53 / 0.41 | 1.29 / 1.47 | 0.56 / 0.64 | 0.47 / 0.39 | 0.437 / 0.449 |
+| 40k | 0.54 / 0.48 | 0.96 / 1.07 | 0.56 / 0.60 | 0.52 / 0.46 | 0.414 / 0.418 |
+| 48k | 0.56 / 0.45 | 0.89 / 1.02 | 0.55 / 0.61 | 0.48 / 0.45 | 0.413 / 0.420 |
+| 56k | 0.64 / 0.56 | 0.85 / 0.94 | 0.47 / 0.53 | 0.57 / 0.51 | 0.340 / 0.341 |
+| 60k | 0.65 / 0.58 | 0.85 / 0.95 | 0.46 / 0.52 | 0.61 / 0.55 | 0.336 / 0.342 |
+
+The pair has a train-val gap at every checkpoint from 4k on (pair found +0.07 to +0.12, Dice +0.03 to +0.08, focal
+val above train), while ordinary tracks have none (Dice within 0.01). The gap does not grow with steps, and the pair's
+val losses keep falling to the end (focal 1.31 -> 0.95, Dice 0.83 -> 0.52; pair found 0.14 -> 0.58), so by the
+"train falling, val flat or rising" criterion the pair does not overfit within 60k steps; it generalises less well
+than ordinary tracks from the start. Arm c shows the same pattern (pair found train / val 0.49 / 0.42 at 28k).
+Full table (all components, plain and weighted, both runs): quirk_tracking_data/results/pu60/maskformer/retro_split/.
+200-event samples: binomial sigma about 0.035 per pair-found value.
+
+More data and the w25 decay (Daniel 2026-11-06). mf_comb_w10_97k: comb_w10 config on training events 3000-99999
+(97k events, all with direction features), 100k steps (warmup 1.5k, constant LR, linear decay over 80k-100k), one
+batch job (60915583, 25.4 GPU-h, 1.1 steps/s, peak 34.3 GB, 889 updates skipped by the spike guard, most between
+60k and 70k; in-training val dipped to 0.37 at 70k and recovered), split-loss logging on. mf_comb_w25_decay36k: decay
+branch of mf_comb_w25 from trunk-step=036000 (before its divergence), 12k steps of linear decay to step 48k (20% of
+60k), interactive slot (2.9 GPU-h). Val 2000-2999, Python strict, object threshold 0.1, paired bootstrap against
+mf_comb_w10 (0.546 / 0.088):
+
+| Run | Coupled vl strict / tight strict | Per quirk vl strict | technical_sm vl / tight strict | Fake vl / tight strict | vs mf_comb_w10 vl strict (95%) | tight strict (95%) |
+|---|---|---|---|---|---|---|
+| mf_comb_w10 (16k events, 60k steps) | 0.546 / 0.088 | 0.029 | 0.682 / 0.513 | 0.053 / 0.282 | - | - |
+| mf_comb_w10_97k (97k events, 100k steps) | 0.578 / 0.117 | 0.036 | 0.699 / 0.547 | 0.046 / 0.253 | +0.032 [+0.015, +0.049] | +0.028 [+0.014, +0.042] |
+| mf_comb_w25_decay36k (pair x25, 48k steps) | 0.542 / 0.096 | 0.030 | 0.615 / 0.417 | 0.124 / 0.405 | -0.004 [-0.019, +0.011] | +0.007 [-0.005, +0.019] |
+
+pair_diag: 97k run 409 of 416 missed pairs without a query whose own mask matches the pair (2 object score, 5
+competition), found pairs' matched-query own-mask efficiency median 0.75; w25 decay 450 of 460 (0 / 10). Results:
+quirk_tracking_data/results/pu60/maskformer/ (val_scores/mf_comb_w10_97k_ev2000-2999, val_scores/
+mf_comb_w25_decay36k_ev2000-2999, pair_diag/, bootstrap/comb_w10_vs_*, runs/mf_comb_w10_97k, runs/mf_comb_w25_decay36k).
