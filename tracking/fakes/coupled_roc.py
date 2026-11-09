@@ -37,9 +37,14 @@ def _best(tracks, parts, flag, sel):
     return np.sort(p["best"].fill_null(-np.inf).to_numpy())
 
 
-def roc(t: pl.DataFrame, pn: pl.DataFrame, pp: pl.DataFrame, score: np.ndarray, n_cuts: int = 800) -> pl.DataFrame:
+def roc(t: pl.DataFrame, pn: pl.DataFrame, pp: pl.DataFrame, score: np.ndarray, n_cuts: int = 800,
+        cuts: np.ndarray | None = None) -> pl.DataFrame:
+    """Rates at each cut (tracks kept: score >= cut). Default cuts: no cut plus n_cuts quantiles of `score`; pass
+    `cuts` to evaluate exact thresholds (e.g. a cut chosen on another sample)."""
     t = t.with_columns(score=pl.Series(score))
-    cuts = np.concatenate([[-1e300], np.quantile(score, np.linspace(0, 0.9995, n_cuts))])
+    if cuts is None:
+        cuts = np.concatenate([[-1e300], np.quantile(score, np.linspace(0, 0.9995, n_cuts))])
+    cuts = np.asarray(cuts, dtype=np.float64)
     s = np.sort(score)
     o = np.argsort(score)
     i = np.searchsorted(s, cuts, side="left")
