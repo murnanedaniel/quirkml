@@ -1583,3 +1583,23 @@ quality cut at the exact val-B cut): identical to the earlier numbers at 3 decim
   tagger keeps only 53% of pair-good quirk tracks at the L774 cut, and the chain adds little (0.32 -> 0.36).
 - Files: results/pu60/lambda/<set>/{pypair,py}_cc0.5_mh4.json, py_split{,_pair}.json, apply.json, roc_test.csv.
   Scripts: pileup60/lam_driver.sh, lam_gpu.sbatch, lam_score.sbatch, lam_apply60.py, lam_rescore774.sbatch.
+
+Test (MaskFormer's only test use, 2026-11-09): mf_comb_w10_97k final checkpoint (step 100k) on test events 0-1999,
+object threshold 0.1. Chunked ACTS (8 x 250-event chunks, 48 workers, CPU m4958) and Python strict give identical
+coupled numbers.
+
+| Truth | vl / tight | vl strict / tight strict | technical_sm vl strict / tight strict | Fake vl strict / tight strict |
+|---|---|---|---|---|
+| pair (coupled) | 0.6075 / 0.1228 | 0.6005 (1198/1995) / 0.1178 (235/1995) | 0.691 / 0.539 | 0.047 / 0.255 |
+| per quirk | 0.0678 / 0.000 | 0.0345 / 0.000 | 0.691 / 0.539 | 0.049 / 0.256 |
+
+No track-quality score exists in the MaskFormer writer, so no quality-cut working points. Results:
+quirk_tracking_data/results/pu60/maskformer/test_mf_comb_w10_97k/.
+
+Longer schedule on 97k events (branch from the 97k run's trunk-step=080000, constant LR 5e-5 to 160k, decay to 200k):
+diverged twice. Seed 80000: loss from about 12 to 1.5e7 between steps 80,689 and 80,729, gradient norms 1e11-1e15
+afterwards, every update skipped by the spike guard (cancelled at 88.8k). Seed 80001: one val event with loss 1.3e4 at
+86k (val coupled still 0.51), then the same blow-up at about 88.5k (cancelled at 89k). In-training val before the
+blow-up: 0.42 (82k), 0.57 (84k), 0.61 (88k). The 97k run itself had an episode of 650 skipped updates at 60k-70k at
+the same LR and recovered; w25 diverged the same way at 38k. Metrics of both attempts:
+results/pu60/maskformer/runs/mf_comb_w10_97k_long_diverged/.
