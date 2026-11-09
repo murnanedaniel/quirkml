@@ -269,6 +269,8 @@ def main():
     ap.add_argument("--keep-states", type=int, nargs="*", default=[], help="mu60: also keep state_step<N>.pt at these steps")
     ap.add_argument("--deadline", type=float, default=0, help="unix time: save state and exit 3 before it")
     a = ap.parse_args()
+    if a.max_edges and a.batch != 1:
+        ap.error("--max-edges (phi-sector crop) handles one event per batch: use --batch 1")
     os.makedirs(a.out, exist_ok=True)
     # train_gnn.py globals (same meaning as its CLI)
     T.QW = a.quirk_weight if a.qw_mode == "all" else 1.0  # mu60: "pos"/"neg" apply the weight below to true/wrong quirk edges only
@@ -349,21 +351,20 @@ def main():
                 s, t, ef, y, w = phi_crop(evs[b0], f, s, t, ef, y, w, a.max_edges, a.crop_quirk_frac, a.crop_mode, a.crop_margin)
             with torch.autocast("cuda", dtype=torch.bfloat16):
                 lo = model(f, s, t, ef).float()
+            # quirk flag of every node of the batched graph (T.batch concatenates the events' nodes in order)
+            hqb = torch.as_tensor(np.concatenate([e["hit_quirk"] for e in evs[b0:b0 + a.batch]]), device=lo.device)
             if a.loss_mode == "norm3":  # mu60: separately normalised BCE for true quirk edges, wrong quirk-touching, ordinary
-                hqt = torch.as_tensor(evs[b0]["hit_quirk"], device=lo.device)
-                qt = hqt[s] | hqt[t]
+                qt = hqb[s] | hqb[t]
                 bce = torch.nn.functional.binary_cross_entropy_with_logits(lo, y, reduction="none")
                 live = w > 0
                 parts = [(qt & (y > 0) & live, a.norm3_w[0]), (qt & (y == 0) & live, a.norm3_w[1]), (~qt & live, a.norm3_w[2])]
                 loss = sum(wt * bce[m].mean() for m, wt in parts if m.any())
             else:
                 if a.qw_mode in ("pos", "neg"):  # mu60: quirk_weight on true (pos) or wrong (neg) quirk-touching edges only
-                    hqt = torch.as_tensor(evs[b0]["hit_quirk"], device=lo.device)
                     sel = (y > 0) if a.qw_mode == "pos" else (y == 0)
-                    w = torch.where((hqt[s] | hqt[t]) & sel, w * a.quirk_weight, w)
+                    w = torch.where((hqb[s] | hqb[t]) & sel, w * a.quirk_weight, w)
                 loss = T.loss_fn(lo, y, w, pw)
             if a.class_log:  # mu60: logging only, no effect on the gradient
-                hqb = torch.as_tensor(np.concatenate([e["hit_quirk"] for e in evs[b0:b0 + a.batch]]), device=lo.device)
                 cl_acc += CL.class_terms(lo, y, w, hqb[s] | hqb[t], pw, a.loss_mode, a.norm3_w)
                 cl_n += 1
             opt.zero_grad(set_to_none=True)
