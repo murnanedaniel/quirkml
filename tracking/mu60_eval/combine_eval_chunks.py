@@ -1,11 +1,15 @@
 """Sum chunked evaluate.py outputs (OUT/chunk-*/summary.json) into OUT/summary_combined.json: efficiencies (quirk track,
 quirk event, technical, technical_sm) from summed accepted/total, fake and duplicate rates from summed track classes,
-per working point. Fails if the chunks do not cover [A, B) exactly once. Usage: combine_eval_chunks.py OUT A B"""
+per working point. Fails if the chunks do not cover [A, B) exactly once. Rates as tracking_core.histogram_counts:
+fake_rate / duplicate_rate over all tracks (unassociated included), *_associated over matched + duplicate + fake
+(before 2026-11-09 fake_rate / duplicate_rate here were the associated ones).
+Usage: combine_eval_chunks.py OUT A B [OUT_JSON]  (default OUT/summary_combined.json)"""
 import json
 import sys
 from pathlib import Path
 
 out, first, stop = Path(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3])
+out_json = Path(sys.argv[4]) if len(sys.argv) > 4 else out / "summary_combined.json"
 chunks = sorted(out.glob("chunk-*/summary.json"), key=lambda p: int(p.parent.name.split("-")[1]))
 covered = []
 for p in chunks:
@@ -39,9 +43,15 @@ for key in EFF:
         r["eff"] = r["accepted"] / r["total"] if r["total"] else None
 for wp, r in res["track_classification_all_particles"].items():
     assoc = r["matched"] + r["duplicate"] + r["fake"]
-    r["fake_rate"] = r["fake"] / assoc if assoc else None
-    r["duplicate_rate"] = r["duplicate"] / assoc if assoc else None
-(out / "summary_combined.json").write_text(json.dumps(res, indent=1))
+    if assoc + r["unassociated"] != r["tracks"]:
+        raise SystemExit(f"{wp}: track classes {assoc} + {r['unassociated']} do not add up to {r['tracks']} tracks")
+    n = r["tracks"]
+    r["fake_rate"] = r["fake"] / n if n else None
+    r["duplicate_rate"] = r["duplicate"] / n if n else None
+    r["fake_rate_associated"] = r["fake"] / assoc if assoc else None
+    r["duplicate_rate_associated"] = r["duplicate"] / assoc if assoc else None
+out_json.parent.mkdir(parents=True, exist_ok=True)
+out_json.write_text(json.dumps(res, indent=1))
 for wp in ("very_loose_strict", "tight_strict", "very_loose", "tight"):
     if wp in res["quirk_track_efficiency"]:
         t = res["track_classification_all_particles"][wp]

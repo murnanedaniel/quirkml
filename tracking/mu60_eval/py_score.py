@@ -5,7 +5,10 @@ particle whose last hit comes latest in the track's prediction rows wins); doubl
 majority particle if purity n_major / track_hits and completeness n_major / particle_hits pass the ratio.
 Working points: very_loose (>= 0.5), tight (>= 0.9), very_loose_strict (> 0.5), tight_strict (> 0.9) (integer tests).
 Track classes (ACTS TrackFinderPerformanceWriter): matched (first matching track of a particle), duplicate (further
-matching tracks), fake (no match). Selections as evaluate.py: quirk (|pdg| 10000100, charged, primary, >= 3 hits),
+matching tracks), fake (no match), unassociated (majority particle not counted by evaluate.py's "all" selection: not in
+the particles table, or |eta| not below WIDE_ETA_MAX = 10, the edge of the eta axis of the ACTS histograms the counts
+come from; in practice particles stored with pT = 0, whose eta is infinite. In none of the other three). Rates as tracking_core.histogram_counts:
+fake_rate / duplicate_rate over all tracks, *_associated over matched + duplicate + fake. Selections as evaluate.py: quirk (|pdg| 10000100, charged, primary, >= 3 hits),
 technical (pT > 1 GeV, |eta| < 3, charged, primary, vertex rho < 2 mm, |z| < 200 mm, >= 7 hits), technical_sm
 (technical without quirks). On a pair-truth copy the quirk efficiency is the coupled efficiency.
 
@@ -22,6 +25,7 @@ import pyarrow.compute as pc
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from r1_data import QUIRK_PDG, read_events  # noqa: E402
 
+WIDE_ETA_MAX = 10.0  # tracking_core.eval.WIDE_ETA_MAX: eta axis of the "all" selection histograms
 POINTS = {"very_loose": (1, 2, False), "tight": (9, 10, False), "very_loose_strict": (1, 2, True), "tight_strict": (9, 10, True)}
 
 
@@ -69,17 +73,23 @@ def main():
         (pl.col("event_id") >= first) & (pl.col("event_id") < stop)).with_columns(
         pl.col("event_id").cast(pl.Int64), pl.col("hit_id").cast(pl.Int64))
     t = per_track(hits, counts, preds)
+    eta = (pl.col("pz") / (pl.col("px") ** 2 + pl.col("py") ** 2).sqrt()).arcsinh()
+    known = parts.filter(eta.abs() < WIDE_ETA_MAX).select("event_id", "particle_id").with_columns(assoc=pl.lit(True))
+    t = t.join(known, on=["event_id", "particle_id"], how="left").with_columns(pl.col("assoc").fill_null(False))
+    assoc_mask = t["assoc"].to_numpy()
+    n_unassoc = int((~assoc_mask).sum())
     n, m, p = t["n_major"].to_numpy(), t["track_hits"].to_numpy(), t["particle_hits"].to_numpy()
     res = {"events": [first, stop], "dataset": str(dataset), "predictions": str(pred_dir), "tracks": t.height}
     pe_frames = []
     for name, (a, b, strict) in POINTS.items():
         ok = ((b * n > a * m) & (b * n > a * p)) if strict else ((b * n >= a * m) & (b * n >= a * p))
         tt = t.with_columns(ok=pl.Series(ok))
-        per_p = tt.group_by("event_id", "particle_id").agg(pl.col("ok").sum().alias("k"))
-        matched_particles = per_p.filter(pl.col("k") > 0)
-        n_matched = matched_particles.height
-        n_dup = int((matched_particles["k"] - 1).sum()) if n_matched else 0
-        n_fake = int((~tt["ok"]).sum())
+        matched_particles = tt.group_by("event_id", "particle_id").agg(pl.col("ok").sum().alias("k")).filter(pl.col("k") > 0)
+        # track classes: unassociated tracks are neither matched, duplicate nor fake
+        cls_p = matched_particles.join(known, on=["event_id", "particle_id"], how="inner")
+        n_matched = cls_p.height
+        n_dup = int((cls_p["k"] - 1).sum()) if n_matched else 0
+        n_fake = int((~tt["ok"] & tt["assoc"]).sum())
         q = parts.join(matched_particles, on=["event_id", "particle_id"], how="left").with_columns(found=pl.col("k").fill_null(0) > 0)
         r = {}
         for sel in ("quirk", "technical", "technical_sm"):
@@ -90,8 +100,14 @@ def main():
         r["quirk_event"] = {"accepted": int((e2["nf"] == 2).sum()), "total": e2.height,
                             "eff": float((e2["nf"] == 2).mean()) if e2.height else None}
         assoc = n_matched + n_dup + n_fake
+        if assoc + n_unassoc != t.height:
+            raise ValueError(f"track classes {assoc} + {n_unassoc} do not add up to {t.height} tracks")
         r["tracks"] = {"tracks": t.height, "matched": n_matched, "duplicate": n_dup, "fake": n_fake,
-                       "fake_rate": n_fake / assoc if assoc else None, "duplicate_rate": n_dup / assoc if assoc else None}
+                       "unassociated": n_unassoc,
+                       "fake_rate": n_fake / t.height if t.height else None,
+                       "duplicate_rate": n_dup / t.height if t.height else None,
+                       "fake_rate_associated": n_fake / assoc if assoc else None,
+                       "duplicate_rate_associated": n_dup / assoc if assoc else None}
         res[name] = r
         if per_event_out is not None:
             pe_frames.append(ev.with_columns(point=pl.lit(name)))
