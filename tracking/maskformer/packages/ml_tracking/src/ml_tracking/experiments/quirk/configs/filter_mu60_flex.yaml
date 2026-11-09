@@ -1,0 +1,112 @@
+# mu 60 per-hit filter: label = hit on a target (charged primary, pT > 1 GeV, >= 3 hits) or on a quirk; quirk hits x10.
+# Acceptance on val (2000-2999): >= 99% of quirk-pair hits and >= 98% of target hits kept, <= ~15k hits/event.
+# Recipe (review thread): Lion 5e-5 at 1 event/update, warmup then constant then linear decay to ~0 over the last 20%,
+# clip 0.1, wd 1e-5, bf16. FlexGeo filter (review thread): the published filter's size (10 layers, width 256) with
+# the geometric box mask |dphi| < 0.15, |deta| < 0.30 (32 eta bands) and phi/eta RoPE (quirk/flexgeo.py), graph-free.
+seed_everything: 0
+name: quirk_filter_mu60_flex
+data:
+  dataset_root: /global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_tracking_data/parquet_r1_mu60/m200_L774_mu60
+  train_events: [3000, 99999]
+  val_events: [2000, 2999]
+  test_events: [0, 1999]
+  num_train: -1
+  num_val: 100
+  num_test: -1
+  batch_size: 1
+  num_workers: 4
+  event_max_num_particles: 2048
+  particle_min_pt: 1.0
+  particle_max_abs_eta: 4.0
+  min_num_sihit: 3
+  particle_require_primary: true
+  include_quirks: true
+  quirk_pdg_ids: [10000100]
+  quirk_min_num_sihit: 1
+  cluster_features: true
+  row_group_cache_size: 2
+  block_shuffle: true
+  hit_labels: true
+trainer:
+  max_steps: 10000
+  max_epochs: -1
+  accelerator: gpu
+  devices: 1
+  precision: bf16-mixed
+  log_every_n_steps: 10
+  default_root_dir: /pscratch/sd/d/danieltm/quirk_mu60/runs/filter_flex
+  gradient_clip_val: 0.1
+  val_check_interval: 1000
+  check_val_every_n_epoch: null
+  num_sanity_val_steps: 2
+  logger:
+    - class_path: lightning.pytorch.loggers.CSVLogger
+      init_args: {save_dir: logs}
+    - class_path: lightning.pytorch.loggers.WandbLogger
+      init_args: {project: quirk-tracking, entity: murnanedaniel, save_dir: logs, resume: allow}
+  callbacks:
+    - class_path: ml_tracking.experiments.colliderml.hit_filter_writer.HitFilterPredictionWriter
+      init_args: {output_path: filter_predictions.parquet}
+    - class_path: ml_tracking.experiments.quirk.monitor.TrainingMonitor
+      init_args: {log_every_n_steps: 10}
+    - class_path: ml_tracking.callbacks.SaveConfig
+    - class_path: ml_tracking.callbacks.Checkpoint
+      init_args: {monitor: val/loss}
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args: {logging_interval: step}
+    - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+      init_args: {refresh_rate: 50}
+model:
+  optimizer: Lion
+  lrs_config:
+    schedule: wsd
+    warmup_frac: 0.15
+    cooldown_frac: 0.2
+    initial: 1e-6
+    max: 5e-5
+    end: 1e-9
+    skip_scheduler: false
+    weight_decay: 1e-5
+  mtl: false
+  model:
+    class_path: ml_tracking.experiments.quirk.flexgeo.FlexHitFilter
+    init_args:
+      flex: {dphi: 0.15, deta: 0.3, bands: 32, rotary: true}
+      input_sort_field: null
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: ml_tracking.models.InputNet
+              init_args:
+                input_name: sihit
+                input_dtype: float32
+                fields: [x, y, z, r, s, eta, phi, layer_id, log_size_loc0, log_size_loc1, log_n_channels, log_sum_activation]
+                net:
+                  class_path: ml_tracking.models.Dense
+                  init_args: {input_size: 12, hidden_layers: [128], output_size: 256, activation: SwiGLU}
+                posenc:
+                  class_path: ml_tracking.models.posenc.PositionEncoder
+                  init_args: {input_name: sihit, dim: 256, fields: [r, eta, phi]}
+      encoder:
+        class_path: ml_tracking.models.Encoder
+        init_args:
+          num_layers: 10
+          dim: 256
+          attn_type: torch
+          hybrid_norm: true
+          norm: FastLayerNorm
+          dense_kwargs: {activation: SwiGLU}
+          attn_kwargs: {bias: false}
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: ml_tracking.experiments.quirk.filter_model.QuirkHitFilterTask
+              init_args:
+                name: hit_filter
+                input_object: sihit
+                target_field: on_valid_particle
+                dim: 256
+                threshold: 0.1
+                quirk_weight: 10.0

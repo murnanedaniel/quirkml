@@ -1,0 +1,71 @@
+# Combined mu 60 arm, pair weight 10 (launched 2026-11-05 with maskformer_mu60_long60k.yaml; x25 variant: maskformer_mu60_combined_w25.yaml).
+# Overlay on maskformer_mu60.yaml. Changes vs the mu 60 trunk:
+#  - inputs as the best mu 0 model (mf-E-pairdir: no-origin + cluster shape + cluster-direction features) plus
+#    volume_id: x, y, z, r, layer_id, volume_id, 4 log cluster-shape columns, 15 direction columns = 26; no s / eta /
+#    phi input columns and no (r, eta, phi) position encoding (Stage D no-origin);
+#  - direction features at mu 60 (quirk_tracking_data/direction/m200_L774_mu60, events 0-93999);
+#  - FlexGeo window as the baseline (arm a, the wide window, did not help the pair); the wide window with rotary
+#    frequencies capped at 60 (phi) / 30 (eta) is kept as a commented variant;
+#  - pair object weight x10 in the object BCE, the mask losses and the matching cost (arm c);
+#  - positive-hit weight 16 in the mask focal loss (the focal mean runs over ~67k hits at mu 60 vs ~4.3k at mu 0).
+data:
+  direction_dir: /global/cfs/cdirs/m4958/usr/danieltm/ColliderML/quirk_tracking_data/direction/m200_L774_mu60
+  row_group_cache_size: 4  # hits, particles, direction (+ spare)
+model:
+  model:
+    init_args:
+      # Window kept at the baseline 0.15 x 0.30 after arm a (wide window alone: no gain for the pair, -0.013 vl strict,
+      # n.s.). Wide-window variant: {dphi: 0.5, deta: 1.0, bands: 32, rotary: true, phi_freq_max: 60.0, eta_freq_max: 30.0}
+      flex: {dphi: 0.15, deta: 0.3, bands: 32, rotary: true}
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: ml_tracking.models.InputNet
+              init_args:
+                input_name: sihit
+                input_dtype: null  # InputNet casts posenc when set; with posenc null it must be null (as noorigin.yaml)
+                fields: [x, y, z, r, layer_id, volume_id, log_size_loc0, log_size_loc1, log_n_channels, log_sum_activation,
+                         dir_m0, dir_m1, dir_m2, dir_m3, dir_m4, dir_m5, dir_d0, dir_d1, dir_d2, dir_d3, dir_d4, dir_d5,
+                         dir_sign, dir_phi, dir_eta, dir_valid]
+                net:
+                  class_path: ml_tracking.models.Dense
+                  init_args: {input_size: 26, hidden_layers: [128], output_size: 256, activation: SwiGLU}
+                posenc: null
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: ml_tracking.models.task.ObjectClassificationTask
+              init_args:
+                name: flow_valid
+                input_object: query
+                output_object: flow
+                target_object: particle
+                losses: {object_bce: 0.1}
+                costs: {object_bce: 0.1}
+                dim: 256
+                null_weight: 1.0
+                mask_queries: false
+                has_intermediate_loss: true
+                has_first_layer_loss: false
+                object_weight_field: is_quirk
+                object_weight_value: 10.0
+            - class_path: ml_tracking.models.task.ObjectHitMaskTask
+              init_args:
+                name: flow_sihit_assignment
+                input_constituent: sihit
+                input_object: query
+                output_object: flow
+                target_object: particle
+                losses: {mask_dice: 2.0, mask_focal: 50.0}
+                costs: {mask_dice: 2.0, mask_focal: 50.0}
+                null_mask_weight: 5.0
+                normalize_focal_cost: true
+                null_weight: 1.0
+                dim: 256
+                object_weight_field: particle_is_quirk
+                object_weight_fn: binary
+                object_weight_alpha: 10.0
+                object_cost_weight: 10.0
+                pos_hit_weight: 16.0

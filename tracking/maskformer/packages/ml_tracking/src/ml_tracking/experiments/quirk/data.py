@@ -72,8 +72,12 @@ class QuirkTrackingDataset(Dataset):
         row_group_cache_size: int = 64,
         quirk_pair_target: bool = False,
         direction_dir: str | None = None,
+        hit_labels: bool = False,
+        hit_mask_dir: str | None = None,
     ):
         super().__init__()
+        self.hit_labels = bool(hit_labels)
+        self.hit_mask_dir = Path(hit_mask_dir) if hit_mask_dir else None
         self.quirk_pair_target = bool(quirk_pair_target)
         self.direction_dir = Path(direction_dir) if direction_dir else None
         self.root = Path(dataset_root)
@@ -103,6 +107,8 @@ class QuirkTrackingDataset(Dataset):
         self.hit_loc = self._index(sorted(hit_dir.glob("*.parquet")))
         # Optional offline cluster-direction features (quirkml/tracking/direction), same hit order as tracker_hits.
         self.dir_loc = self._index(sorted(self.direction_dir.glob("*.parquet"))) if self.direction_dir else None
+        # Optional kept-hit masks of a hit filter: per event a list<bool> `keep` in R1 hit order (shared mu 60 filter).
+        self.mask_loc = self._index(sorted(self.hit_mask_dir.glob("*.parquet"))) if self.hit_mask_dir else None
         start, end = self.event_range
         ids = sorted(e for e in self.particle_loc if start <= e <= end)
         if extra_event_range is not None:  # data-scaling study: a second, disjoint event range (train only)
@@ -225,8 +231,20 @@ class QuirkTrackingDataset(Dataset):
         hit_pid = hits["particle_id"].astype(np.int64)
         n_hits = len(hit_pid)
 
-        idx, nhits, quirk = self.select_targets(particles, hit_pid)
+        idx, nhits, quirk = self.select_targets(particles, hit_pid)  # targets defined on the full event
         n_all = int(len(idx))
+        orig_ids = np.arange(n_hits)
+        if self.mask_loc is not None:
+            if event_id not in self.mask_loc:
+                raise KeyError(f"event {event_id} has no hit mask in {self.hit_mask_dir}")
+            mr = self._read(self.mask_loc[event_id], ("event_id", "keep"))
+            keep = np.asarray(mr["keep"], dtype=bool)
+            if len(keep) != n_hits:
+                raise ValueError(f"hit mask of event {event_id} has {len(keep)} entries, event has {n_hits} hits")
+            hits = {k: v[keep] for k, v in hits.items()}
+            hit_pid = hit_pid[keep]
+            orig_ids = orig_ids[keep]
+            full_n_hits, n_hits = n_hits, int(keep.sum())
 
         # ---- inputs (positions in metres, as in the LRT pipeline)
         x = torch.from_numpy(hits["x"].astype(np.float32)) * 1e-3
@@ -246,10 +264,13 @@ class QuirkTrackingDataset(Dataset):
             "sihit_layer_id": torch.from_numpy(hits["layer_id"].astype(np.float32)),
             "sihit_volume_id": torch.from_numpy(hits["volume_id"].astype(np.float32)),
             "sihit_valid": torch.ones(n_hits, dtype=torch.bool),
-            "sihit_original_hit_id": torch.arange(n_hits, dtype=torch.int64),
+            "sihit_original_hit_id": torch.from_numpy(orig_ids.astype(np.int64)),
         }
         if self.dir_loc is not None:
-            inputs.update(self._direction_features(event_id, n_hits))
+            dfeat = self._direction_features(event_id, len(keep) if self.mask_loc is not None else n_hits)
+            if self.mask_loc is not None:
+                dfeat = {k: v[torch.from_numpy(keep)] for k, v in dfeat.items()}
+            inputs.update(dfeat)
         if self.cluster_features:
             # Counts / charge are heavy-tailed: log1p. Angles are passed as stored.
             for col in ("size_loc0", "size_loc1", "n_channels", "sum_activation"):
@@ -289,7 +310,15 @@ class QuirkTrackingDataset(Dataset):
             "particle_pt": pt,
             "particle_particle_id": torch.from_numpy(np.pad(tgt_pid, (0, P - n_all), constant_values=-1)),
             "sihit_valid": inputs["sihit_valid"],
+            # hits of the full event (before a hit mask): the writer marks unkept hits as unassigned (-1)
+            "event_n_hits_full": torch.tensor(full_n_hits if self.mask_loc is not None else n_hits, dtype=torch.int64),
         }
+        if self.hit_labels:
+            # hit filter labels: hit belongs to any selected target (before the slot limit) / to a quirk
+            targets["sihit_on_valid_particle"] = torch.from_numpy(m_np.any(0)) if n_all else torch.zeros(n_hits, dtype=torch.bool)
+            targets["sihit_is_quirk"] = torch.from_numpy(m_np[q_np].any(0)) if q_np.any() else torch.zeros(n_hits, dtype=torch.bool)
+            # the hit filter does not use the [slots, hits] masks (2048 x ~70k at mu 60): drop them
+            targets["particle_sihit_valid"] = torch.zeros(P, 1, dtype=torch.bool)
         return inputs, targets
 
     @staticmethod
@@ -359,6 +388,8 @@ class QuirkDataModule(LightningDataModule):
         direction_dir: str | None = None,
         train_extra_events: list[int] | None = None,
         block_shuffle: bool = False,
+        hit_labels: bool = False,
+        hit_mask_dir: str | None = None,
     ):
         super().__init__()
         if batch_size < 1:
@@ -401,6 +432,8 @@ class QuirkDataModule(LightningDataModule):
             "row_group_cache_size": row_group_cache_size,
             "quirk_pair_target": quirk_pair_target,
             "direction_dir": direction_dir,
+            "hit_labels": hit_labels,
+            "hit_mask_dir": hit_mask_dir,
         }
 
     def _make(self, split: str) -> QuirkTrackingDataset:

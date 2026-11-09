@@ -1,0 +1,34 @@
+# 60k-step single run (combined arms, Daniel 2026-11-05): warmup 1.5k, constant LR, linear decay over 48k-60k
+# (warmup_frac 1500/60000, cooldown_frac 0.2), no early stopping, final checkpoint. Validation every 2000 steps on 100
+# val events (the 30k point is read from it). Checkpoints: every 4k steps kept (trunk-step=), plus the latest state
+# every 500 steps (resume-step=, one file kept) for resuming chained 4 h windows. Callback list repeated (jsonargparse
+# replaces lists).
+trainer:
+  max_steps: 60000
+  val_check_interval: 2000
+  callbacks:
+    - class_path: ml_tracking.experiments.quirk.prediction_writer.QuirkPredictionWriter
+      init_args: {out_dir: predictions, object_threshold: 0.1, mask_threshold: 0.5}
+    - class_path: ml_tracking.experiments.quirk.monitor.TrainingMonitor
+      init_args: {log_every_n_steps: 10}
+    - class_path: ml_tracking.callbacks.SaveConfig
+    - class_path: ml_tracking.callbacks.Checkpoint
+      init_args: {monitor: val/loss}
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args: {every_n_train_steps: 4000, save_top_k: -1, filename: "trunk-step={step:06d}", auto_insert_metric_name: false}
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args: {every_n_train_steps: 500, save_top_k: 1, monitor: null, filename: "resume-step={step:06d}", auto_insert_metric_name: false}
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args: {logging_interval: step}
+    - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+      init_args: {refresh_rate: 50}
+model:
+  lrs_config:  # a dict: an overlay replaces it whole, so every key is repeated from maskformer_mu60.yaml
+    schedule: wsd
+    warmup_frac: 0.025
+    cooldown_frac: 0.2
+    initial: 1e-6
+    max: 5e-5
+    end: 1e-9
+    skip_scheduler: false
+    weight_decay: 1e-5

@@ -511,6 +511,10 @@ class ObjectHitMaskTask(Task):
         object_weight_alpha: float = 1.0,
         object_weight_scale: float = 30.0,
         object_weight_cap: float = 300.0,
+        null_mask_weight: float = 0.0,
+        normalize_focal_cost: bool = False,
+        object_cost_weight: float = 1.0,
+        pos_hit_weight: float = 1.0,
     ):
         """Task for predicting associations between objects and hits.
 
@@ -575,6 +579,19 @@ class ObjectHitMaskTask(Task):
         self.object_weight_alpha = object_weight_alpha
         self.object_weight_scale = object_weight_scale
         self.object_weight_cap = object_weight_cap
+        # quirk fork (mu 60, review recipe): focal of unmatched queries against an empty mask (weight 5 published),
+        # and the focal matching cost divided by the number of valid hits (as the loss, which is a mean over hits).
+        self.null_mask_weight = null_mask_weight
+        self.normalize_focal_cost = normalize_focal_cost
+        # quirk fork: matching-cost weight of objects whose boolean object_weight_field is set (binary weighting);
+        # the cost column of such a target is multiplied by this, so the assignment favours its best query.
+        if object_cost_weight != 1.0 and object_weight_fn != "binary":
+            raise ValueError("object_cost_weight needs object_weight_fn binary")
+        self.object_cost_weight = object_cost_weight
+        # quirk fork: weight of a target's own hits in the mask losses (focal / BCE sample weight; Dice unaffected).
+        # The focal loss is a mean over all hits of the event, so at mu 60 (~67k hits) a target's positive hits count
+        # ~16x less than at mu 0 (~4.3k); pos_hit_weight ~16 restores the mu 0 balance. Costs are unchanged.
+        self.pos_hit_weight = pos_hit_weight
 
         self.output_object_hit = output_object + "_" + input_constituent
         self.target_object_hit = target_object + "_" + input_constituent
@@ -631,6 +648,12 @@ class ObjectHitMaskTask(Task):
         # sample_weight = target + self.null_weight * (1 - target)
         for cost_fn, cost_weight in self.costs.items():
             costs[cost_fn] = cost_weight * cost_fns[cost_fn](output, target, input_pad_mask=hit_pad)
+        if self.normalize_focal_cost and "mask_focal" in costs and hit_pad is not None:
+            costs["mask_focal"] = costs["mask_focal"] / hit_pad.sum(-1).clamp_min(1).to(costs["mask_focal"].dtype)[:, None, None]
+        if self.object_cost_weight != 1.0:
+            flag = targets[self.object_weight_field].to(device=output.device) > 0  # [batch, targets]
+            w = 1 + (self.object_cost_weight - 1) * flag.to(output.dtype)
+            costs = {k: v * w[:, None, :] for k, v in costs.items()}  # costs are [batch, preds, targets]
         return costs
 
     def loss(
@@ -650,7 +673,7 @@ class ObjectHitMaskTask(Task):
         if query_mask is not None:
             object_pad = object_pad & query_mask
 
-        sample_weight = target + self.null_weight * (1 - target)
+        sample_weight = self.pos_hit_weight * target + self.null_weight * (1 - target)
         losses = {}
         for loss_fn, loss_weight in self.losses.items():
             if self.object_weight_fn != "none" and loss_fn in {"mask_dice", "mask_focal", "mask_bce"}:
@@ -662,6 +685,15 @@ class ObjectHitMaskTask(Task):
                     output, target, object_valid_mask=object_pad, input_pad_mask=hit_pad, sample_weight=sample_weight
                 )
 
+        if self.null_mask_weight:
+            unmatched = ~targets[self.target_object + "_valid"]
+            if query_mask is not None:
+                unmatched = unmatched & query_mask
+            if unmatched.any():
+                losses["null_mask_focal"] = self.null_mask_weight * loss_fns["mask_focal"](
+                    output, torch.zeros_like(target), object_valid_mask=unmatched, input_pad_mask=hit_pad)
+            else:
+                losses["null_mask_focal"] = output.float().sum() * 0
         return losses
 
     def _weighted_mask_loss(

@@ -1,0 +1,44 @@
+# mu 60 arm c (overlay on maskformer_mu60.yaml): the quirk-pair object weighted x10. Object BCE: pair target weight
+# 10 (ObjectClassificationTask object_weight_field is_quirk). Mask losses (Dice, focal): binary weight 10 on the pair,
+# weights normalised to mean one over the valid targets of the event (so with ~180 targets the pair gets ~9.5x an
+# ordinary track). Matching: the pair's cost column (Dice + focal) x10 (object_cost_weight), so the assignment gives
+# the pair its best query. jsonargparse replaces lists: the task list of maskformer_mu60.yaml is repeated.
+model:
+  model:
+    init_args:
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: ml_tracking.models.task.ObjectClassificationTask
+              init_args:
+                name: flow_valid
+                input_object: query
+                output_object: flow
+                target_object: particle
+                losses: {object_bce: 0.1}
+                costs: {object_bce: 0.1}
+                dim: 256
+                null_weight: 1.0
+                mask_queries: false
+                has_intermediate_loss: true
+                has_first_layer_loss: false
+                object_weight_field: is_quirk
+                object_weight_value: 10.0
+            - class_path: ml_tracking.models.task.ObjectHitMaskTask
+              init_args:
+                name: flow_sihit_assignment
+                input_constituent: sihit
+                input_object: query
+                output_object: flow
+                target_object: particle
+                losses: {mask_dice: 2.0, mask_focal: 50.0}
+                costs: {mask_dice: 2.0, mask_focal: 50.0}
+                null_mask_weight: 5.0
+                normalize_focal_cost: true
+                null_weight: 1.0
+                dim: 256
+                object_weight_field: particle_is_quirk
+                object_weight_fn: binary
+                object_weight_alpha: 10.0
+                object_cost_weight: 10.0

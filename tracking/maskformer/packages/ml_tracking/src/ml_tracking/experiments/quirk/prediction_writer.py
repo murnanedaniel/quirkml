@@ -44,6 +44,13 @@ class QuirkPredictionWriter(CanonicalPredictionWriter):
                 ok = win >= self.mask_threshold
                 assignments[ok] = q_idx[local[ok]]
                 scores[ok] = win[ok]
+            n_full = int(targets["event_n_hits_full"][b]) if "event_n_hits_full" in targets else n_hits
+            if n_full != n_hits:  # hit mask: unkept hits are written as unassigned
+                full_a = torch.full((n_full,), -1, dtype=torch.int64)
+                full_s = torch.full((n_full,), torch.nan, dtype=torch.float32)
+                full_a[hit_ids] = assignments
+                full_s[hit_ids] = scores
+                assignments, scores, hit_ids, n_hits = full_a, full_s, torch.arange(n_full), n_full
             self._frames.append(pl.DataFrame({
                 "event_id": pl.Series([int(event_id)] * n_hits, dtype=pl.UInt64),
                 "hit_id": pl.Series(hit_ids.numpy(), dtype=pl.UInt64),
