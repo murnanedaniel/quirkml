@@ -268,7 +268,7 @@ def read_graphs(path_glob, first=None, last=None):
 class Logger:
     """CSV + W&B (online; offline fallback, never disabled)."""
 
-    def __init__(self, out_dir, name, config):
+    def __init__(self, out_dir, name, config, tags=None):
         os.makedirs(out_dir, exist_ok=True)
         self.csv_path = os.path.join(out_dir, "log.csv")
         self.fields = None
@@ -280,11 +280,11 @@ class Logger:
         os.environ.setdefault("WANDB_MODE", "online")
         try:
             self.run = wandb.init(project="quirk-tracking", entity="murnanedaniel", name=name, config=config,
-                                  dir=out_dir, mode="online")
+                                  dir=out_dir, mode="online", tags=tags)
         except Exception as exc:  # offline fallback (allowed); never disabled
             print("wandb online failed, falling back to offline:", exc, flush=True)
             self.run = wandb.init(project="quirk-tracking", entity="murnanedaniel", name=name, config=config,
-                                  dir=out_dir, mode="offline")
+                                  dir=out_dir, mode="offline", tags=tags)
 
     def log(self, d):
         d = dict(d)

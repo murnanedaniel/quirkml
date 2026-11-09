@@ -49,7 +49,6 @@ rT.write_csv(out / "roc_test.csv")
 res["quality"] = {"no_cut_test": rT.row(0, named=True)}
 for wp in ("fake_0.07", "fake_0.02"):
     c = qj["operating_points"][wp]["cut_valB"]
-    sel = rT.filter(pl.col("cut") >= c)
-    res["quality"][wp] = {"cut_L774_valB": c, "test": sel.row(0, named=True) if sel.height else rT.row(-1, named=True)}
+    res["quality"][wp] = {"cut_L774_valB": c, "test": CR.roc(tt, pnt, ppt, sT, cuts=np.array([c])).row(0, named=True)}
 (out / "apply.json").write_text(json.dumps(res, indent=1, default=float) + "\n")
 print(json.dumps(res, indent=1, default=float), flush=True)

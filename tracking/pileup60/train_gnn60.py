@@ -323,7 +323,10 @@ def main():
         return
     cfg = vars(a) | {"stage": "gnn_stream", "n_train": n_train, "n_val": len(va), "total_steps": a.steps,
                      "resume_step": step, "epochs_equiv": a.steps * a.batch / n_train}
-    log = Logger(a.out, a.name + (f"_resume{step}" if step else ""), cfg)
+    # wandb rule (Daniel): every quirk-tracking run carries a pileup tag and its dataset name in the config
+    dataset = os.path.basename(os.path.normpath(a.cache)).split("_dir")[0]
+    cfg["dataset"] = dataset
+    log = Logger(a.out, a.name + (f"_resume{step}" if step else ""), cfg, tags=["pu60" if "_mu60" in dataset else "pu0"])
     log.rows = prev_rows
     pw = torch.tensor(a.pos_weight, device=T.DEV)
     # a resumed run starts a fresh pass (new shard order, seeded by the resume step)
