@@ -1555,3 +1555,31 @@ mf_comb_w25_decay36k_ev2000-2999, pair_diag/, bootstrap/comb_w10_vs_*, runs/mf_c
 Corrected 2026-11-09 against val_scores/mf_comb_w25_decay36k_ev2000-2999/pyscore_pair.json: w25 decay tight strict
 coupled 0.095 (95/995) and technical_sm 0.416 (were written 0.096 / 0.417); its vl strict fake rate is now the
 pair-truth value 0.121 like the other rows (was the normal-truth value 0.124).
+
+### Other string scales at mu 60, no retraining (2026-11-09; test 0-1999 of each set, used once)
+
+pair_50k_qw40_s0 (trained on m200_L774_mu60) applied unchanged to m200_L278_mu60 and m200_L2154_mu60: graph v3, components
+0.5, the L774 tagger (cut 0.776) and quality model (cuts 0.542 / 0.825 from L774 val B), the 1M splitter. Direction
+features for blocks 0-1 built as for L774 (mu60_prep.sh); R1 copies and pair truth were already made by the MaskFormer
+prep. L774 rescored with the same code (py_score.py with the unassociated class and all-tracks fake denominator;
+quality cut at the exact val-B cut): identical to the earlier numbers at 3 decimals. Python strict throughout.
+
+| Quantity (test) | L = 278 eV | L = 774 eV (training point) | L = 2154 eV |
+|---|---|---|---|
+| coupled strict loose / tight | 0.211 / 0.035 | 0.650 / 0.169 | 0.882 / 0.369 |
+| fake / technical_sm | 0.323 / 0.959 | 0.323 / 0.958 | 0.323 / 0.959 |
+| quality cut fake 0.07: coupled / tight / technical_sm | 0.203 / 0.035 / 0.953 | 0.632 / 0.167 / 0.952 | 0.865 / 0.365 / 0.953 |
+| quality cut fake 0.02: coupled / tight / technical_sm | 0.180 / 0.031 / 0.934 | 0.587 / 0.165 / 0.932 | 0.806 / 0.355 / 0.934 |
+| per-quirk strict (pair GNN tracks) loose / tight | 0.321 / 0.064 | 0.099 / 0.001 | 0.163 / 0.001 |
+| tagger: pair-good efficiency / tagged per event (ordinary) | 0.527 / 0.33 (0.18) | 0.916 / 0.82 (0.19) | 0.872 / 0.98 (0.19) |
+| gated splitter chain: per-quirk loose / tight, quirk event; tracks split | 0.364 / 0.086, 0.202; 607 | 0.397 / 0.098, 0.330; 1611 | 0.454 / 0.018, 0.336; 1939 |
+| mu 0 reference (gnn_grid_strict.csv, mu 0 GNN): coupled / tight; per-quirk loose / tight | 0.518 / 0.169; 0.790 / 0.339 | (training point, not in grid) | 0.960 / 0.766; 0.610 / 0.008 |
+
+- Ordinary tracking (fake, technical_sm, tracks per event) does not depend on the string scale.
+- Coupled efficiency rises with Lambda as at mu 0 (tighter, more collinear pairs): at 2154 eV the mu 60 pair GNN reaches
+  0.88 coupled (mu 0: 0.96); at 278 eV it falls to 0.21 (mu 0: 0.52). The mu 60 / mu 0 coupled ratio is 0.92 at 2154 and 0.41 at
+  278 eV; at 774 eV the only mu 0 test number at hand is 0.935 at fake 0.02, against 0.587 here at the same fake (0.63).
+- At 278 eV the two quirks separate; the pair GNN builds them as separate tracks (per-quirk 0.32, above coupled), the
+  tagger keeps only 53% of pair-good quirk tracks at the L774 cut, and the chain adds little (0.32 -> 0.36).
+- Files: results/pu60/lambda/<set>/{pypair,py}_cc0.5_mh4.json, py_split{,_pair}.json, apply.json, roc_test.csv.
+  Scripts: pileup60/lam_driver.sh, lam_gpu.sbatch, lam_score.sbatch, lam_apply60.py, lam_rescore774.sbatch.
