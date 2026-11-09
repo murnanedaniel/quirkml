@@ -998,6 +998,12 @@ t2e_pairdir_long test) and at mu 60: on the pair+direction zero-shot predictions
 normal and pair truth) every count (quirk, quirk_event, technical, technical_sm accepted/total; tracks, matched,
 duplicate, fake) is identical to ACTS in every chunk at all four working points (compare_py_acts.py). Python is the
 default at mu 60; ACTS for the headline test numbers only (48 workers per node; 96 run out of memory).
+Recheck 2026-11-09: ACTS leaves unassociated the tracks whose majority particle is stored with pT = 0 (infinite eta,
+outside the eta axis of the "all" selection histograms; 38-104 tracks per 2000 test events). py_score.py counted them
+as matched or fake (efficiencies unaffected; fake rates change in the 6th decimal). With the unassociated class added
+to py_score.py, compare_py_acts.py (which now also compares unassociated) gives identical counts in every chunk at
+all four working points on pair_50k_qw40_s0 test and the three zero-shot runs, normal and pair truth (logs:
+quirk_tracking_data/results/pu60/audit_2026-11-09/). Fake and duplicate rates are over all tracks, as in tracking_core.
 
 Zero-shot, m200_L774_mu60 test (events 0-1999), mu 0 models, object threshold 0.1, Python strict scoring:
 
@@ -1143,14 +1149,17 @@ Quality cut at mu 60 (coupled efficiency vs background rejection; tracking/pileu
 recipe: B2 track-quality score, gradient-boosted trees on the quality.py features incl. GNN edge-score features,
 label "not a fake on the pair truth", quirk-majority good tracks x30; trained on val 2000-2499, operating cuts chosen
 on val 2500-2999, curve on test 0-1999 once). Model: pair GNN mu 60 s0, components 0.6. Model saved
-(/pscratch/sd/d/danieltm/quirk_pu60/roc/pair60_s0_cc0.6/quality.pkl; roc_test.csv, roc_valB.csv, roc.json).
+(quirk_tracking_data/models/quality_pu60/pair60_s0_cc0.6/quality.pkl; roc_test.csv, roc_valB.csv, roc.json).
+Operating points corrected 2026-11-09 (roc_exactcut.json): test rates are now taken at exactly the val-B cut; before,
+roc60.py used the next test-quantile cut above it (cuts 0.513 / 0.744 / 0.850, coupled 0.511 at keep 99%, fake 0.072,
+tracks per event 3152 / 2754 / 2540).
 
 | Operating point (cut from val B) | Coupled strict loose / tight (test) | Fake (strict) | Rejection 1/fake | technical_sm | Tracks per event |
 |---|---|---|---|---|---|
 | no cut | 0.521 / 0.109 | 0.318 | 3 | 0.961 | 4751 |
-| keep 99% of val-B coupled eff (cut 0.513) | 0.511 / 0.109 | 0.072 | 14 | 0.955 | 3152 |
-| keep 95% (cut 0.744) | 0.484 / 0.109 | 0.029 | 34 | 0.946 | 2754 |
-| keep 90% (cut 0.850) | 0.451 / 0.107 | 0.015 | 66 | 0.936 | 2540 |
+| keep 99% of val-B coupled eff (cut 0.511) | 0.512 / 0.109 | 0.073 | 14 | 0.955 | 3155 |
+| keep 95% (cut 0.743) | 0.484 / 0.109 | 0.029 | 34 | 0.946 | 2757 |
+| keep 90% (cut 0.849) | 0.451 / 0.107 | 0.015 | 66 | 0.936 | 2543 |
 
 Read off the test curve: coupled 0.502 at fake 0.05, 0.464 at 0.02, 0.421 at 0.01; rejection 22 / 68 / 129 / 304 at
 coupled efficiency 0.50 / 0.45 / 0.40 / 0.30 (mu 0: rejection 718 +- 75 at coupled 0.80; coupled 0.935 at fake 0.02).
@@ -1537,9 +1546,12 @@ mf_comb_w10 (0.546 / 0.088):
 |---|---|---|---|---|---|---|
 | mf_comb_w10 (16k events, 60k steps) | 0.546 / 0.088 | 0.029 | 0.682 / 0.513 | 0.053 / 0.282 | - | - |
 | mf_comb_w10_97k (97k events, 100k steps) | 0.578 / 0.117 | 0.036 | 0.699 / 0.547 | 0.046 / 0.253 | +0.032 [+0.015, +0.049] | +0.028 [+0.014, +0.042] |
-| mf_comb_w25_decay36k (pair x25, 48k steps) | 0.542 / 0.096 | 0.030 | 0.615 / 0.417 | 0.124 / 0.405 | -0.004 [-0.019, +0.011] | +0.007 [-0.005, +0.019] |
+| mf_comb_w25_decay36k (pair x25, 48k steps) | 0.542 / 0.095 | 0.030 | 0.615 / 0.416 | 0.121 / 0.405 | -0.004 [-0.019, +0.011] | +0.007 [-0.005, +0.019] |
 
 pair_diag: 97k run 409 of 416 missed pairs without a query whose own mask matches the pair (2 object score, 5
 competition), found pairs' matched-query own-mask efficiency median 0.75; w25 decay 450 of 460 (0 / 10). Results:
 quirk_tracking_data/results/pu60/maskformer/ (val_scores/mf_comb_w10_97k_ev2000-2999, val_scores/
 mf_comb_w25_decay36k_ev2000-2999, pair_diag/, bootstrap/comb_w10_vs_*, runs/mf_comb_w10_97k, runs/mf_comb_w25_decay36k).
+Corrected 2026-11-09 against val_scores/mf_comb_w25_decay36k_ev2000-2999/pyscore_pair.json: w25 decay tight strict
+coupled 0.095 (95/995) and technical_sm 0.416 (were written 0.096 / 0.417); its vl strict fake rate is now the
+pair-truth value 0.121 like the other rows (was the normal-truth value 0.124).
