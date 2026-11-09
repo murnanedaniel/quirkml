@@ -36,6 +36,12 @@ data:
 
 trainer:
   max_steps: 100000
+  # every pileup-60 run is tagged pu60 and logs its dataset (Daniel 2026-11-09); list repeated (jsonargparse replaces lists)
+  logger:
+    - class_path: lightning.pytorch.loggers.CSVLogger
+      init_args: {save_dir: logs}
+    - class_path: lightning.pytorch.loggers.WandbLogger
+      init_args: {project: quirk-tracking, entity: murnanedaniel, save_dir: logs, resume: allow, tags: [pu60], config: {data.dataset: m200_L774_mu60, pileup: 60}}
   default_root_dir: /pscratch/sd/d/danieltm/quirk_mu60/runs/mf_trunk
   gradient_clip_val: 0.1
   val_check_interval: 2000

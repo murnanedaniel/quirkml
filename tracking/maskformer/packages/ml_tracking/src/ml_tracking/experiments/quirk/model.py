@@ -130,6 +130,10 @@ class QuirkModel(ModelWrapper):
         u = union.sum(-1, keepdim=True)
         ok = ((2 * inter > u) & (2 * inter > size)).any(-1) & has
         self.log(f"{stage}/coupled_strict", ok[has].float().mean(), batch_size=int(has.sum()), on_step=False, on_epoch=True)
+        # tight strict: > 90% of the pair's hits and > 90% of the track's hits (integer test 10 * inter > 9 * n)
+        ok_tight = ((10 * inter > 9 * u) & (10 * inter > 9 * size)).any(-1) & has
+        self.log(f"{stage}/coupled_strict_tight", ok_tight[has].float().mean(), batch_size=int(has.sum()), on_step=False,
+                 on_epoch=True)
 
     def log_custom_metrics(self, preds, targets, stage):
         if stage == "val":
@@ -160,7 +164,7 @@ class QuirkModel(ModelWrapper):
         # Fraction of true hit memberships recovered (insensitive to the many zeros).
         self.log(f"{stage}/hit_recall", tp[true_valid].sum() / n_true[true_valid].sum().clamp_min(1))
 
-        for wp in (0.5, 0.75, 1.0):
+        for wp in (0.5, 0.75, 0.9, 1.0):
             good = (hit_eff >= wp) & (hit_pur >= wp) & pred_valid & true_valid
             self.log(f"{stage}/p{wp}_eff", good.sum().float() / true_valid.sum().clamp_min(1))
             if quirk.any():

@@ -43,7 +43,7 @@ trainer:
     - class_path: lightning.pytorch.loggers.CSVLogger
       init_args: {save_dir: logs}
     - class_path: lightning.pytorch.loggers.WandbLogger
-      init_args: {project: quirk-tracking, entity: murnanedaniel, save_dir: logs, resume: allow}
+      init_args: {project: quirk-tracking, entity: murnanedaniel, save_dir: logs, resume: allow, tags: [pu60], config: {data.dataset: m200_L774_mu60, pileup: 60}}
   callbacks:
     - class_path: ml_tracking.experiments.colliderml.hit_filter_writer.HitFilterPredictionWriter
       init_args: {output_path: filter_predictions.parquet}
