@@ -1604,6 +1604,88 @@ blow-up: 0.42 (82k), 0.57 (84k), 0.61 (88k). The 97k run itself had an episode o
 the same LR and recovered; w25 diverged the same way at 38k. Metrics of both attempts:
 results/pu60/maskformer/runs/mf_comb_w10_97k_long_diverged/.
 
+### MaskFormer stability and efficiency diagnostics (2026-11-09 to 11-11; val 2000-2999 only, no test use)
+
+Files: quirk_tracking_data/results/pu60/maskformer/diag_review/ (ckpt_norms.csv, val_events.parquet,
+val_events_86k.parquet, ord_eff_97k.json, ord_fail_modes_97k.json, g2check_61082475.out). Scripts in mu60_eval/:
+diag_ckpt_norms.py, diag_val_events.py, ord_eff_breakdown.py, ord_fail_modes.py.
+
+Weight norms (mf_comb_w10_97k checkpoints, Lion, weight decay 1e-5 on all parameters, peak LR 5e-5). The total
+Frobenius norm grows linearly while the LR is constant, about 3 per 1k steps: 312 (4k), 475 (60k), 533 (80k). It
+stops growing only once the LR decays: 548 (88k), 553 (100k). Every group grows, with decoder dense 88 -> 324 and
+encoder dense 70 -> 213. An attention logit scale proxy for encoder layer 0 (largest singular value of W_q W_k^T /
+sqrt(d) over heads) goes 0.36 (4k) -> 4.3 (60k) -> 5.7 (80k) -> 6.1 (100k). In both long runs the LR stayed at 5e-5
+after 80k, and the norms kept growing: rerun total 557 and layer-0 scale 6.6 at 88k, above the 97k run's final
+values. Seed 80000 broke at 80.7k. Its weights at 84k, 88k and 88.5k are identical (total 536.6) because the guard
+skipped nearly every update from there on (skips 731 at 80k, 8,622 at 88.8k).
+
+Exploding val event. The 1.3e4 in-training val loss of the rerun (seed 80001, step 86k) comes from one event, 2034:
+summed loss 2.4e6, against 12.7 or less for the other 99 events. Its loss is 1.6 at decoder layer 0 and then grows
+from layer to layer: 4.9e3 (layer 1), 7.0e4 (layer 3), 5.1e5 (layer 7), 1.4e6 (final; mask focal 9.8e5, Dice at
+its maximum of 2.0). The same event gives 10.1 at 84k and 8.7 in the 97k run at 100k. The event itself is ordinary
+(58k hits, 196 targets). The weights at 86k were briefly in a state where the decoder output blows up on it.
+
+Resume state. Checkpoints hold Lion momentum (185 tensors) and the guard state (history 500). The branch prep
+(branches/prep_branch_ckpt.py) resets only the epoch batch counter and the Timer. Forced-rollback smoke with resume
+(job 61082475): at the checkpoint, momentum norm 0.00283373, guard history 225, 75 skips, 2 rollbacks. After the
+resume, at train start: the same norm, the same history length and the same counters. The in-process rollback
+snapshots are not checkpointed, so after a resume no snapshot is available for the first ~1k steps. A rollback due
+in that time is refused, as below.
+
+bf16 Dice. Yes: under bf16 autocast the Dice sigmoid and its sums over all ~60-90k hits ran in bf16. Both Dice paths
+now cast the logits to fp32 (models/loss.py:97, models/task.py:725). This applies to the review run, not to earlier
+checkpoints.
+
+Guard G2 with no snapshot. The 2026-11-09 smoke printed "rollback due ... no snapshot left" on every step from 14 to
+199, because a refused rollback never cleared the skip counters. Now a refused rollback (no snapshot old enough, or
+max_rollbacks used) prints one warning, resets the consecutive-skip run and the recent-skip window, and training
+continues. The refusal is logged as train/refused_rollbacks. Unit checks
+(maskformer/packages/ml_tracking/tests/experiments/test_quirk_g2_rollback.py, 4 pass) cover: refusal (27 skips give 5
+refusals, not 23), the fraction window, rollback with a snapshot (weights restored, momentum zeroed) and
+max_rollbacks. Forced smoke (force_skip at steps 5-30, 160-185, 260-285): one refusal at step 24, then rollbacks at 179
+(to the snapshot of step 100) and 279 (to step 200).
+
+Ordinary efficiency cap (technical_sm, very loose strict, about 0.69-0.70; 97k run at 100k, val). Ruled out:
+- Query count: 186 targets per event on average, p99 302, 6.1% of events above 256, 0.85% of targets dropped.
+- Exclusive hit assignment: the matched query's own mask gives 0.674 and the final tracks 0.674 (100 events).
+- Strip volumes: 0.698 with long-strip hits, 0.706 short strips only, 0.566 pixel only (n = 1,803).
+- |eta|: 0.66-0.73 in every bin.
+
+What fails (ord_fail_modes.py, 200 events, 27,448 particles): 70.2% found, 16.7% missed (none of the particle's hits
+assigned to any track), 9.8% merged (the track holding most of its hits is less than half this particle, median
+purity 0.45, the other particle usually a soft pion) and 3.4% incomplete. At the matched query (diag_val_events.py,
+training targets, 100 events): object probability is above 0.1 for 99.8% of the failing targets, but the mask is at
+or above 0.5 on no more than half of the particle's hits for 81% of them. 1.6% have no hit above 0.5, and 17% fail
+on purity. So the model has a query for the particle, but its mask probabilities stay below 0.5 on most of the
+particle's hits. The writer then leaves those hits unassigned, and the particle counts as missed. Efficiency by pT:
+0.60 at 1-1.5 GeV, 0.84-0.86 at 1.5-5 GeV, 0.61 at 5-10 GeV, 0.34 above 10 GeV. By hit count: 0.44 with 7-8 hits,
+0.77 with 15-17.
+
+Mask-threshold scan (2026-11-11, job 61138382, inference only; mf_comb_w10_97k final checkpoint, val 2000-2999,
+object threshold 0.1, Python strict; predictions/maskthr_97k/). If the masks were only under-confident, a lower
+threshold would recover the missed particles. It does not: every number gets worse as the threshold drops.
+
+| Mask threshold | coupled vl strict / tight strict | technical_sm vl strict / tight strict | fake vl strict / tight strict | technical_sm vl strict, pT > 10 GeV |
+|---|---|---|---|---|
+| 0.2 | 0.529 / 0.092 | 0.675 / 0.491 | 0.115 / 0.354 | 0.30 |
+| 0.3 | 0.551 / 0.099 | 0.686 / 0.511 | 0.087 / 0.316 | 0.32 |
+| 0.4 | 0.570 / 0.111 | 0.694 / 0.530 | 0.063 / 0.281 | 0.33 |
+| 0.5 | 0.578 / 0.117 | 0.699 / 0.547 | 0.046 / 0.253 | 0.34 |
+
+(pT > 10 GeV: 1,948 particles.) So the hits of missed particles are not near the threshold in their own query: hits
+that a lower threshold adds go into the wrong tracks (fakes and merges rise). The 0.69 cap is set by the mask itself,
+not by the writer's threshold. Its cause remains open.
+
+pT x volume (threshold 0.5): at pT 5-10 GeV, 0.61 with long-strip hits against 0.73 short strips only (n = 2,320 /
+555). Above 10 GeV, 0.33 against 0.45 (n = 1,688 / 252). Particles with long-strip hits do worse at high pT, which
+matches the review thread's finding (ML tracks miss long-strip hits at high pT). Short-strip-only particles also drop,
+to 0.45, so long strips explain only part of the high-pT loss. Below 5 GeV the two volume classes are within 0.04.
+
+Review recipe on 97k events (Lion, decay 1.0 on block weights only, 120 of 185 tensors; G2; peak LR 2.5e-5; WSD 1.5k
+warmup, linear decay over the last 20%; 100k steps, fp32 Dice). Running in the gpu_shared_interactive slot as chained
+4 h windows (runs/mf_review97k, driver review97k_iact.sh, wandb mf_review97k). Val result and paired bootstrap
+against mf_comb_w10_97k to follow.
+
 ### Round 5 (2026-11-09 to 11-11; val 2000-2999 only, no test use)
 
 Three branches (pileup60/round5_driver.sh). Val coupled strict at components 0.5, paired event bootstrap (2000
@@ -1686,3 +1768,35 @@ Origin of the tagged tracks' majority particle, traced in the original truth (qu
   pT; the pileup tags are mostly low pT and secondaries (154 of 182 not primary, median production radius 109 mm).
   This sample is therefore a background for "quirk event minus the quirks", not a pileup-only or SM-process sample.
 - Files: results/pu60/background/bg_tag.json, bg_tagged_origin.parquet (per tagged track).
+
+### Test scoring of the round-5 val winner pair_16k_qw40_120k_s0 (2026-11-11; its only test use)
+
+Pair GNN, 16k events, 120k steps, all quirk-touching edges x40, components 0.5 (val-best), test 0-1999, Python strict,
+the same recipe as pair_50k_qw40_s0 above: quality model and B3 tagger refitted on this model's val tracks (train
+2000-2499, cuts on val B 2500-2999, roc60.py / tagger60.py), test operating points at exactly the val-B cuts, 1M
+splitter on tracks tagged above the new gate. Driver: /pscratch/sd/d/danieltm/quirk_pu60/test16k/driver.sh.
+
+| Quantity (test) | pair_16k_qw40_120k_s0 | pair_50k_qw40_s0 (60k steps) |
+|---|---|---|
+| coupled strict loose / tight | 0.698 / 0.223 | 0.650 / 0.169 |
+| fake (strict) / technical_sm | 0.307 / 0.967 | 0.323 / 0.958 |
+| tracks per event | 4884 | - |
+| quality cut at val-B fake 0.07 (cut 0.548): coupled / tight / fake / technical_sm | 0.686 / 0.223 / 0.070 / 0.961 | 0.632 / 0.167 / 0.070 / 0.952 |
+| quality cut at val-B fake 0.02 (cut 0.824): coupled / tight / fake / technical_sm | 0.643 / 0.222 / 0.020 / 0.945 | 0.587 / 0.165 / 0.020 / 0.932 |
+| per-quirk strict, pair GNN tracks, loose / tight | 0.124 / 0.001 | 0.099 / 0.001 |
+| mu 60 tagger: cut / pair-good efficiency / tagged per event (ordinary) | 0.879 / 0.927 / 0.79 (0.11) | 0.776 / 0.916 / 0.82 (0.19) |
+| gated splitter chain, per-quirk strict loose / tight | 0.484 / 0.139 | 0.397 / 0.098 |
+| chain quirk event / technical_sm / fake; tracks split | 0.417 / 0.967 / 0.307; 1559 | 0.330 / 0.958 / 0.323; 1611 |
+
+- Test follows val: coupled +4.8 points loose and +5.4 tight over the 60k-step model (val: +5.4 / +3.3), at a 1.6 point
+  lower fake rate; the quality-cut points move up by the same amount. The chain gains about 9 points per quirk.
+- The chain-predict job ran as 4 identical copies on a whole debug node (srun without -n1; fixed in
+  chain_predict.sbatch). Rerun as one task: identical Python strict numbers.
+- Chunked ACTS (8 x 250-event chunks, 4 x 12 workers, job 61138603) agrees with Python strict at 4 decimals: pair
+  truth very_loose_strict 0.6982 (1393/1995) / tight_strict 0.2226 (444/1995), technical_sm 0.9672, fake 0.3067;
+  normal (per-quirk) truth 0.1240 (492/3967) / 0.0013 (5/3967); non-strict very_loose 0.7068 pair, fake 0.2737.
+  Summaries: results/pu60/gnn/pair_16k_qw40_120k_s0/test/acts_{pair,quirk}_summary_combined.json.
+- Files: results/pu60/gnn/pair_16k_qw40_120k_s0/test/py{pair,}_cc0.5_mh4.json,
+  results/pu60/chain/qw40_16k120k_cc0.5_py_split{,_pair}.json; models: models/gnn_pu60/{pair_16k_qw40_120k_s0,
+  pair_50k_qw40_120k_s0,pair_mixL_qw40_s0}/ (final.pt, config.json, log.csv), models/quality_pu60/
+  pair60_16k_qw40_120k_cc0.5/, models/tagger/b3_pair60_16k_qw40_120k_cc0.5/.
