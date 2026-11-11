@@ -3,6 +3,7 @@
 Full events (no phi crop) for both splits, the run's own loss weights (config.json), class_loss60.class_terms.
   python class_loss_retro.py RUN_DIR OUT.json [--steps 4000 12000 ...] [--train-blocks 3000 15000 30000 45000]
          [--per-block 50] [--val 2000 2199]
+         [--unseen 60000 60999]
 """
 import argparse
 import json
@@ -57,6 +58,8 @@ def main():
     ap.add_argument("--train-blocks", type=int, nargs="+", default=[3000, 15000, 30000, 45000])
     ap.add_argument("--per-block", type=int, default=50)
     ap.add_argument("--val", type=int, nargs=2, default=[2000, 2199])
+    ap.add_argument("--unseen", type=int, nargs=2, default=None, help="training-range events the run never saw")
+    ap.add_argument("--splits", nargs="+", default=["train", "val"], help="which of train / val / unseen to score")
     a = ap.parse_args()
     c = json.load(open(os.path.join(a.run, "config.json")))
     mode = c.get("qw_mode") or "all"
@@ -70,8 +73,9 @@ def main():
     pw = torch.tensor(c["pos_weight"], device=T.DEV)
 
     t0 = time.time()
-    splits = {"train": load_split(c["cache"], c["graphs"], [(b, b + a.per_block - 1) for b in a.train_blocks]),
-              "val": load_split(c["cache"], c["graphs"], [tuple(a.val)])}
+    ranges = {"train": [(b, b + a.per_block - 1) for b in a.train_blocks], "val": [tuple(a.val)],
+              "unseen": [tuple(a.unseen)] if a.unseen else None}
+    splits = {k: load_split(c["cache"], c["graphs"], ranges[k]) for k in a.splits}
     print({k: len(v[0]) for k, v in splits.items()}, f"loaded in {time.time() - t0:.0f} s", flush=True)
     res = {"run": a.run, "config": {k: c.get(k) for k in ("quirk_weight", "qw_mode", "loss_mode", "agg", "pos_weight")},
            "events": {k: [int(e["event_id"]) for e in v[0]] for k, v in splits.items()},
@@ -85,8 +89,8 @@ def main():
             pe = per_event_terms(model, evs, gr, pw, c)
             res["steps"][st][k] = {**CL.summarize(pe.sum(0), len(evs), ""), "per_event": pe.tolist()}
         r = res["steps"][st]
-        print(st, " ".join(f"{k}:{r['train'][k]:.4f}/{r['val'][k]:.4f}" for k in
-                           ("bce_truepair", "bce_wrongquirk", "bce_ordinary", "qedge_eff", "qedge_pur")),
+        print(st, " | ".join(f"{sp} " + " ".join(f"{k} {r[sp][k]:.4f}" for k in
+                           ("bce_truepair", "bce_wrongquirk", "bce_ordinary", "qedge_eff", "qedge_pur")) for sp in r),
               f"({time.time() - t1:.0f} s)", flush=True)
         json.dump(res, open(a.out + ".tmp", "w"))
         os.replace(a.out + ".tmp", a.out)

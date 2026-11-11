@@ -28,7 +28,7 @@ from scipy.sparse.csgraph import connected_components
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "gnn"))
 from common import load_events  # noqa: E402
 
-CP = "/pscratch/sd/d/danieltm/quirk_pu60/cache/m200_L774_mu60_dir_pair"
+CP = os.environ.get("B60_CACHE", "/pscratch/sd/d/danieltm/quirk_pu60/cache/m200_L774_mu60_dir_pair")  # mu60: other sets via env
 E0, E1 = 2000, 2999
 SPECS = None
 D = {}

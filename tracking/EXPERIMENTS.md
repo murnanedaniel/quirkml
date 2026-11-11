@@ -1603,3 +1603,86 @@ afterwards, every update skipped by the spike guard (cancelled at 88.8k). Seed 8
 blow-up: 0.42 (82k), 0.57 (84k), 0.61 (88k). The 97k run itself had an episode of 650 skipped updates at 60k-70k at
 the same LR and recovered; w25 diverged the same way at 38k. Metrics of both attempts:
 results/pu60/maskformer/runs/mf_comb_w10_97k_long_diverged/.
+
+### Round 5 (2026-11-09 to 11-11; val 2000-2999 only, no test use)
+
+Three branches (pileup60/round5_driver.sh). Val coupled strict at components 0.5, paired event bootstrap (2000
+resamples, 95% interval; pileup60/compare_runs.py) against pair_50k_qw40_s0 (60k steps). Comparisons:
+results/pu60/compare/round5_val.txt.
+
+Driver faults, fixed and rerun: noquirk60.py asserted on event order (direction files are sorted by event_id, hits and
+particles are not; all three are now sorted before the check; branch B rerun via round5_B_restart.sh). run_arm passed
+--export unquoted, so the spaces in TRAIN / EXTRA split it and sbatch failed in a loop for about 12 h without
+starting branch A or the mixed-Lambda arm (quoted; rerun via round5_AC_restart.sh). Both 120k arms stopped at the 12 h
+wall time (attempt 1, exit 3, no final.pt, last checkpoint step 100k) and resumed from state.pt at steps 103000 (16k)
+and 104500 (50k); log.csv steps are monotonic to 120k. The resubmits had their time limit cut to 3.5 h to run before
+the 2026-11-11 maintenance.
+
+**A: x40 at 120k steps** (same recipe, linear decay over 96k-120k; models gnn/<arm>/final.pt, val per-event JSONs
+results/pu60/gnn/<arm>/val/builders60_pe.json)
+
+| Arm | Val loose / tight (0.5) | Fake | Tracks/event | d loose, d tight vs qw40_s0 [95%] |
+|---|---|---|---|---|
+| pair_50k_qw40_s0 (60k steps, reference) | 0.655 / 0.183 | 0.323 | - | - |
+| pair_16k_qw40_120k_s0 | 0.710 / 0.216 | 0.306 | 4799 | +0.054 [+0.038, +0.071], +0.033 [+0.015, +0.053] |
+| pair_50k_qw40_120k_s0 | 0.703 / 0.215 | 0.302 | 4805 | +0.047 [+0.030, +0.065], +0.032 [+0.014, +0.050] |
+
+- 120k steps add about 5 points loose and 3 points tight over 60k, and the fake rate falls by about 2 points
+  (0.30-0.31 vs 0.323). 16k vs 50k events at 120k: -0.007 [-0.021, +0.008] loose, -0.001 [-0.020, +0.017] tight, so
+  the number of steps, not the number of events, gives the gain (as at 60k). One seed each.
+- The val-best components cut stays 0.5 (0.4 / 0.6 / 0.7: loose 0.704 / 0.673 / 0.632 for 50k).
+
+**C: mixed Lambda** (pair_mixL_qw40_s0: 60k steps, x40, training blocks 3-19 of each of L278 / L774 / L2154, about
+17k events per set, 51k in total; val block 2 of each set; results/pu60/lambda_mix/<model>_<set>/builders60_pe.json).
+Reference: pair_50k_qw40_s0 (50k L774 events only).
+
+| Val set (pairs) | qw40_s0 loose / tight, fake | mixL loose / tight, fake | d loose, d tight [95%] |
+|---|---|---|---|
+| L278 (1000) | 0.201 / 0.035, 0.324 | 0.221 / 0.041, 0.314 | +0.020 [+0.007, +0.034], +0.006 [-0.003, +0.016] |
+| L774 (995) | 0.655 / 0.183, 0.323 | 0.619 / 0.155, 0.312 | -0.036 [-0.054, -0.018], -0.028 [-0.045, -0.012] |
+| L2154 (993) | 0.908 / 0.402, 0.324 | 0.909 / 0.398, 0.313 | +0.001 [-0.013, +0.014], -0.004 [-0.027, +0.020] |
+
+- Mixing gains 2 points loose at 278 eV, nothing at 2154 eV, and loses 3-4 points at 774 eV, the reference model's
+  training point. The comparison is not matched: mixL saw about a third of the L774 events and the same 60k steps.
+  The 278 eV coupled efficiency stays low (0.22) with Lambda in training.
+
+**Unseen-train check** (pileup60/class_loss_retro.py, inference only): per-class loss of saved checkpoints on 1000
+seen training events, 1000 unseen events from the training-range distribution (block 60, 60000-60999, never in any
+training range) and 1000 val events. Full events, the run's own loss weights. JSONs:
+results/pu60/classlog/pair_50k_{qw40,trunk}_s0_u_{train,unseen,val}.json.
+
+| Run, step | True-pair BCE train / unseen / val | Ordinary BCE (all three) | Quirk-edge eff train / unseen / val |
+|---|---|---|---|
+| qw40_s0, 4k | 2.515 / 2.601 / 2.572 | 0.0577 / 0.0576 / 0.0579 | 0.172 / 0.154 / 0.167 |
+| qw40_s0, 36k | 1.265 / 1.320 / 1.316 | 0.0369 / 0.0368 / 0.0370 | 0.522 / 0.496 / 0.504 |
+| qw40_s0, 60k | 0.815 / 0.841 / 0.830 | 0.0288 / 0.0287 / 0.0289 | 0.689 / 0.670 / 0.686 |
+| trunk_s0, 60k | 0.870 / 0.850 / 0.922 | 0.0216 / 0.0216 / 0.0217 | 0.696 / 0.703 / 0.686 |
+
+- At 60k, unseen minus train true-pair BCE: qw40 +0.025 [-0.058, +0.112], trunk -0.020 [-0.109, +0.067] (unpaired
+  event bootstrap, different events per split). No sign that either run memorises its training events; the quirk
+  class does not overfit at 60k steps. The 120k arms were not part of this check.
+
+**B: background tag rate** (pileup60/noquirk60.py, bg_tag60.py, bg_origin60.py). The no-quirk sample is
+m200_L774_mu60 blocks 60-61 (2000 events, not in any training range) with every quirk hit and quirk particle removed.
+Everything else of the quirk event stays: pileup (about 60 vertices) and the quirk vertex's ISR jet and underlying
+event (about 222 primary particles, 1552 with secondaries, per event). Chain: pair_50k_qw40_s0, components 0.5, min 4
+hits, L774 tagger (cut 0.776), quality cut at the L774 val-B working points. 4714 tracks per event.
+
+| Selection | Tagged tracks/event | Events with >= 1 tag | Events with >= 2 tags |
+|---|---|---|---|
+| tagger | 0.171 | 15.6% | 1.45% |
+| tagger + quality fake 0.07 | 0.138 | 12.9% | 0.85% |
+| tagger + quality fake 0.02 | 0.091 | 8.75% | 0.30% |
+
+Origin of the tagged tracks' majority particle, traced in the original truth (quirks kept):
+
+| Origin | Tagger: n, pT median [10%, 90%] GeV | + fake 0.02: n, pT median [10%, 90%] GeV |
+|---|---|---|
+| quirk descendant | 0 | 0 |
+| quirk vertex (ISR jet / underlying event), not a quirk descendant | 159, 18.8 [2.9, 71] | 106, 24.8 [5.2, 86] |
+| pileup | 182, 0.77 [0.05, 3.5] | 75, 1.3 [0.11, 4.8] |
+
+- Half of the tags (47%; 59% after the fake-0.02 cut) come from the quirk event's own hard-scatter vertex, mostly high
+  pT; the pileup tags are mostly low pT and secondaries (154 of 182 not primary, median production radius 109 mm).
+  This sample is therefore a background for "quirk event minus the quirks", not a pileup-only or SM-process sample.
+- Files: results/pu60/background/bg_tag.json, bg_tagged_origin.parquet (per tagged track).

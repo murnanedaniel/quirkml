@@ -4,8 +4,8 @@
 # mu 60 pair GNN arm (trunk recipe: warmup 1000, constant LR 5e-4, linear decay over the last 20%, no early stopping,
 # final checkpoint), then val-block inference (2000-2999) only. Resumable: resubmitting continues from state.pt.
 # env: NAME, TRAIN (e.g. 3000-52999), STEPS (60000), SEED, EXTRA (extra train_gnn60.py args)
-C=/pscratch/sd/d/danieltm/quirk_pu60/cache/m200_L774_mu60_dir_pair
-G=/pscratch/sd/d/danieltm/quirk_pu60/graphs/v3_mu0f_cut0.1
+C=${CACHE:-/pscratch/sd/d/danieltm/quirk_pu60/cache/m200_L774_mu60_dir_pair}
+G=${GRAPHS:-/pscratch/sd/d/danieltm/quirk_pu60/graphs/v3_mu0f_cut0.1}
 O=/pscratch/sd/d/danieltm/quirk_pu60/gnn/$NAME
 PY=/pscratch/sd/d/danieltm/envs/ml-tracking-review/bin/python
 STEPS=${STEPS:-60000}; DS=$((STEPS * 8 / 10))
